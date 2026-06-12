@@ -1,0 +1,246 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 168 76% 42%;           /* Turquoise Green `#1abc9c` HSL */
+    --primary-foreground: 0 0% 100%; /* White for readable text on green backgrounds */
+    --secondary: 168 30% 96%;
+    --secondary-foreground: 168 80% 15%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 168 30% 96%;
+    --accent-foreground: 168 80% 15%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 168 76% 42%;
+    --radius: 0.75rem;
+
+    --color-neutral-50: #f8fafc;
+    --color-neutral-100: #f1f5f9;
+    --color-neutral-200: #e2e8f0;
+    --color-neutral-300: #cbd5e1;
+    --color-neutral-400: #94a3b8;
+    --color-neutral-500: #64748b;
+    --color-neutral-600: #475569;
+    --color-neutral-700: #334155;
+    --color-neutral-800: #16a085; /* Darker green hover */
+    --color-neutral-900: #16a085; /* Darker green */
+    --color-neutral-950: #1abc9c; /* Vibrant Turquoise Green */
+    --color-blue-50: #eff6ff;
+    --color-blue-100: #dbeafe;
+    --color-blue-500: #3b82f6;
+    --color-red-500: #ef4444;
+    --color-green-500: #22c55e;
+    --color-yellow-400: #facc15;
+  }
+
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--color-neutral-700);
+    background-color: #ffffff;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #0f172a;
+    word-break: keep-all;
+  }
+
+  ::selection {
+    background-color: var(--color-neutral-900);
+    color: white;
+  }
+}
+
+@layer components {
+  /* Keep text colors as high-contrast slate colors instead of green */
+  .text-neutral-950 {
+    color: #0f172a !important;
+  }
+  .text-neutral-900 {
+    color: #1e293b !important;
+  }
+  .text-neutral-800 {
+    color: #334155 !important;
+  }
+  .text-neutral-700 {
+    color: #3f4e5f !important;
+  }
+  .text-neutral-600 {
+    color: #475569 !important; /* Make grey text darker and visible */
+  }
+  .text-neutral-500 {
+    color: #526276 !important; /* Make grey text darker and visible */
+  }
+  .text-neutral-400 {
+    color: #64748b !important; /* Make grey text darker and visible */
+  }
+  .text-neutral-100 {
+    color: #99f6e4 !important; /* Make light grey step numbers visible in soft teal green */
+  }
+  
+  /* Make sure header nav links that are active or hovered show primary color */
+  header nav a.text-neutral-950 {
+    color: #1abc9c !important;
+  }
+  header svg.text-neutral-950 {
+    color: #1abc9c !important;
+  }
+  header button.text-neutral-950 {
+    color: #1abc9c !important;
+  }
+
+  /* Style text inside green background sections for high readability */
+  .bg-neutral-950,
+  .bg-neutral-900,
+  .bg-primary {
+    color: #022c29 !important;
+  }
+  
+  .bg-neutral-950 h1, .bg-neutral-950 h2, .bg-neutral-950 h3, .bg-neutral-950 h4, .bg-neutral-950 h5, .bg-neutral-950 h6,
+  .bg-neutral-900 h1, .bg-neutral-900 h2, .bg-neutral-900 h3, .bg-neutral-900 h4, .bg-neutral-900 h5, .bg-neutral-900 h6,
+  .bg-primary h1, .bg-primary h2, .bg-primary h3, .bg-primary h4, .bg-primary h5, .bg-primary h6,
+  .bg-neutral-950 p, .bg-neutral-900 p, .bg-primary p,
+  .bg-neutral-950 span, .bg-neutral-900 span, .bg-primary span,
+  .bg-neutral-950 a, .bg-neutral-900 a, .bg-primary a,
+  .bg-neutral-950 li, .bg-neutral-900 li, .bg-primary li,
+  .bg-neutral-950 label, .bg-neutral-900 label, .bg-primary label,
+  .bg-neutral-950 select, .bg-neutral-900 select, .bg-primary select,
+  .bg-neutral-950 div, .bg-neutral-900 div, .bg-primary div {
+    color: #022c29 !important;
+  }
+
+  .bg-neutral-950 a:hover,
+  .bg-neutral-900 a:hover,
+  .bg-primary a:hover {
+    color: #000000 !important;
+    text-decoration: underline;
+  }
+  
+  .bg-neutral-950 .border-white\/20,
+  .bg-neutral-900 .border-white\/20,
+  .bg-primary .border-white\/20 {
+    border-color: rgba(2, 44, 41, 0.3) !important;
+  }
+  
+  .container-main {
+    max-width: 1280px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  @media (min-width: 768px) {
+    .container-main {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+
+  .section-padding {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+  }
+
+  @media (min-width: 768px) {
+    .section-padding {
+      padding-top: 6rem;
+      padding-bottom: 6rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .section-padding {
+      padding-top: 7.5rem;
+      padding-bottom: 7.5rem;
+    }
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .bg-grid-pattern {
+    background-image: 
+      linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .bg-grid-pattern-dark {
+    background-image: 
+      linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Highlighted Repair CTA Button — always visible in navbar (all screen sizes) */
+  .repair-nav-btn {
+    background-color: #1abc9c !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    border-radius: 0.5rem !important;
+    padding: 0.45rem 1.1rem !important;
+    box-shadow: 0 2px 8px rgba(26, 188, 156, 0.25) !important;
+    transition: all 0.2s ease-in-out !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    white-space: nowrap !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+    text-decoration: none !important;
+  }
+
+  .repair-nav-btn:hover {
+    background-color: #16a085 !important;
+    box-shadow: 0 4px 12px rgba(26, 188, 156, 0.35) !important;
+    transform: translateY(-1px);
+    color: #ffffff !important;
+  }
+
+  /* Transparent header style: elegant white outline ghost button */
+  .repair-nav-btn.repair-nav-btn-transparent {
+    background-color: transparent !important;
+    color: #ffffff !important;
+    border: 2px solid rgba(255, 255, 255, 0.85) !important;
+    box-shadow: none !important;
+    padding: 0.35rem 1rem !important;
+  }
+
+  .repair-nav-btn.repair-nav-btn-transparent:hover {
+    background-color: #ffffff !important;
+    color: #1abc9c !important;
+    border-color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2) !important;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
