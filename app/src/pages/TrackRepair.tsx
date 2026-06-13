@@ -1,32 +1,65 @@
 import { useState } from 'react';
 import { Search, Smartphone, Package, CheckCircle2, Clock, AlertCircle, ChevronRight, ArrowRight, MessageCircle, Phone } from 'lucide-react';
-import { submissions, statusLabels, statusColors } from '@/data/submissions';
+import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const pipelineStages = [
-  { key: 'new', label: 'Order Placed' },
-  { key: 'received', label: 'Device Received' },
-  { key: 'diagnosis', label: 'Diagnosis' },
-  { key: 'repairing', label: 'Repairing' },
-  { key: 'testing', label: 'Quality Check' },
-  { key: 'ready', label: 'Ready' },
-  { key: 'delivered', label: 'Delivered' },
+  { key: 'PENDING', label: 'Order Placed' },
+  { key: 'DIAGNOSING', label: 'Diagnosis' },
+  { key: 'IN_PROGRESS', label: 'Repairing' },
+  { key: 'WAITING_FOR_PARTS', label: 'Waiting for Parts' },
+  { key: 'COMPLETED', label: 'Quality Check / Ready' },
+  { key: 'DELIVERED', label: 'Delivered' },
 ];
+
+export const statusColors: Record<string, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  DIAGNOSING: 'bg-purple-100 text-purple-800',
+  IN_PROGRESS: 'bg-blue-100 text-blue-800',
+  WAITING_FOR_PARTS: 'bg-orange-100 text-orange-800',
+  COMPLETED: 'bg-emerald-100 text-emerald-800',
+  DELIVERED: 'bg-gray-100 text-gray-800',
+};
+
+export const statusLabels: Record<string, string> = {
+  PENDING: 'Pending',
+  DIAGNOSING: 'Diagnosing',
+  IN_PROGRESS: 'In Progress',
+  WAITING_FOR_PARTS: 'Waiting for Parts',
+  COMPLETED: 'Completed',
+  DELIVERED: 'Delivered',
+};
 
 export default function TrackRepair() {
   const [searchPhone, setSearchPhone] = useState('');
   const [searchId, setSearchId] = useState('');
   const [activeTab, setActiveTab] = useState<'phone' | 'id'>('phone');
-  const [result, setResult] = useState<typeof submissions[0] | null>(null);
+  const [result, setResult] = useState<any | null>(null);
   const [searched, setSearched] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     setSearched(true);
-    if (activeTab === 'phone') {
-      const found = submissions.find((s) => s.customer.phone.includes(searchPhone));
-      setResult(found || null);
-    } else {
-      const found = submissions.find((s) => s.id.toLowerCase().includes(searchId.toLowerCase()));
-      setResult(found || null);
+    setResult(null);
+    setIsLoading(true);
+
+    try {
+      const ticketsRef = collection(db, 'tickets');
+      let q;
+      if (activeTab === 'phone') {
+        q = query(ticketsRef, where('customerPhone', '==', searchPhone));
+      } else {
+        q = query(ticketsRef, where('ticketId', '==', searchId));
+      }
+
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        setResult(querySnapshot.docs[0].data());
+      }
+    } catch (error) {
+      console.error("Error searching tickets:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -66,16 +99,17 @@ export default function TrackRepair() {
                 <input
                   type="tel"
                   value={searchPhone}
-                  onChange={(e) => setSearchPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="98765 43210"
+                  onChange={(e) => setSearchPhone(e.target.value)}
+                  placeholder="e.g. 9876543210"
                   className="flex-1 px-3 py-2.5 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
                 <button
                   onClick={handleSearch}
-                  className="px-5 py-2.5 bg-neutral-950 text-white rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors"
+                  disabled={isLoading}
+                  className="px-5 py-2.5 bg-neutral-950 text-white rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50"
                 >
-                  Track
+                  {isLoading ? 'Searching...' : 'Track'}
                 </button>
               </div>
             </div>
@@ -87,15 +121,16 @@ export default function TrackRepair() {
                   type="text"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
-                  placeholder="e.g., SUB-240612-001"
+                  placeholder="e.g., TKT-A1B2C3"
                   className="flex-1 px-3 py-2.5 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
                 <button
                   onClick={handleSearch}
-                  className="px-5 py-2.5 bg-neutral-950 text-white rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors"
+                  disabled={isLoading}
+                  className="px-5 py-2.5 bg-neutral-950 text-white rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50"
                 >
-                  Track
+                  {isLoading ? 'Searching...' : 'Track'}
                 </button>
               </div>
             </div>
@@ -103,21 +138,21 @@ export default function TrackRepair() {
         </div>
 
         {/* Result */}
-        {searched && !result && (
+        {searched && !result && !isLoading && (
           <div className="text-center py-12">
             <AlertCircle className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
             <p className="text-b-sm text-neutral-500">No order found with the provided details.</p>
           </div>
         )}
 
-        {result && (
+        {result && !isLoading && (
           <div className="space-y-6">
             {/* Order Summary */}
             <div className="bg-white rounded-xl border border-neutral-200 p-5">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-b-xs text-neutral-500 mb-1">Order ID</p>
-                  <p className="text-b-sm font-semibold text-neutral-950">{result.id}</p>
+                  <p className="text-b-sm font-semibold text-neutral-950">{result.ticketId}</p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-b-xs font-medium ${statusColors[result.status]}`}>
                   {statusLabels[result.status]}
@@ -128,26 +163,22 @@ export default function TrackRepair() {
                   <p className="text-b-xs text-neutral-500 mb-1">Device</p>
                   <p className="text-b-sm font-medium text-neutral-950 flex items-center gap-1.5">
                     <Smartphone className="w-4 h-4" />
-                    {result.device.brand} {result.device.model}
+                    {result.brand} {result.deviceModel}
                   </p>
                 </div>
                 <div>
                   <p className="text-b-xs text-neutral-500 mb-1">Issue</p>
-                  <p className="text-b-sm text-neutral-700">{result.device.issue}</p>
+                  <p className="text-b-sm text-neutral-700">{result.issueDescription}</p>
                 </div>
                 <div>
                   <p className="text-b-xs text-neutral-500 mb-1">Customer</p>
-                  <p className="text-b-sm text-neutral-700">{result.customer.name}</p>
-                </div>
-                <div>
-                  <p className="text-b-xs text-neutral-500 mb-1">Service Mode</p>
-                  <p className="text-b-sm text-neutral-700 capitalize">{result.appointment.serviceMethod}</p>
+                  <p className="text-b-sm text-neutral-700">{result.customerName}</p>
                 </div>
               </div>
-              {result.quotedPriceLabel && (
+              {result.estimatedCost > 0 && (
                 <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
-                  <span className="text-b-xs text-neutral-500">Quoted Price</span>
-                  <span className="text-b-sm font-semibold text-neutral-950">{result.quotedPriceLabel}</span>
+                  <span className="text-b-xs text-neutral-500">Estimated Cost</span>
+                  <span className="text-b-sm font-semibold text-neutral-950">₹{result.estimatedCost}</span>
                 </div>
               )}
             </div>
@@ -175,9 +206,6 @@ export default function TrackRepair() {
                         <p className={`text-b-sm font-medium ${isCompleted ? 'text-neutral-950' : 'text-neutral-400'}`}>
                           {stage.label}
                         </p>
-                        {isCurrent && result.internalNotes && (
-                          <p className="text-b-xs text-neutral-500 mt-1">{result.internalNotes}</p>
-                        )}
                       </div>
                     </div>
                   );

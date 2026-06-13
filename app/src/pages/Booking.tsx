@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { Check, ArrowLeft, Calendar, Clock, MapPin, Home, Package, Truck, User, Phone, Mail, FileText, ChevronRight, MessageCircle } from 'lucide-react';
 import { useStore } from '@/store/useStore';
+import { db } from '@/lib/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 export default function Booking() {
-  const { booking, updateBooking, resetBooking } = useStore();
+  const { booking, updateBooking, resetBooking, cart, clearCart } = useStore();
   const [confirmed, setConfirmed] = useState(false);
   const [serviceMode, setServiceMode] = useState<'pickup' | 'dropoff' | 'courier'>('dropoff');
   const [selectedDate, setSelectedDate] = useState('');
@@ -27,18 +29,51 @@ export default function Booking() {
     return d;
   });
 
-  const handleSubmit = () => {
-    updateBooking({
-      serviceMode,
-      date: selectedDate,
-      timeSlot: selectedSlot,
-      customerName,
-      customerPhone,
-      customerEmail,
-      address,
-      notes,
-    });
-    setConfirmed(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      const ticketId = 'TKT-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+      
+      const bookingPrice = parseInt(booking.priceLabel?.replace(/[^0-9]/g, '') || '0') || 0;
+      const cartPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const totalCost = bookingPrice + cartPrice;
+
+      await addDoc(collection(db, "tickets"), {
+        ticketId,
+        customerName,
+        customerPhone,
+        customerEmail: customerEmail || 'no-email@provided.com',
+        deviceType: booking.deviceType || 'unknown',
+        brand: booking.brand || 'unknown',
+        deviceModel: booking.model || 'unknown',
+        issueDescription: booking.issue || 'unknown',
+        estimatedCost: totalCost,
+        serviceMode,
+        cart: cart,
+        status: 'PENDING',
+        createdAt: new Date().toISOString()
+      });
+
+      updateBooking({
+        serviceMode,
+        date: selectedDate,
+        timeSlot: selectedSlot,
+        customerName,
+        customerPhone,
+        customerEmail,
+        address,
+        notes,
+      });
+      setConfirmed(true);
+      clearCart();
+    } catch (error) {
+      console.error('Failed to book repair:', error);
+      alert('Failed to book repair. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (confirmed) {
@@ -56,9 +91,18 @@ export default function Booking() {
             <div className="bg-neutral-50 rounded-lg p-4 text-left mb-6 space-y-2">
               <p className="text-b-sm"><span className="text-neutral-500">Device:</span> {booking.model || 'Not specified'}</p>
               <p className="text-b-sm"><span className="text-neutral-500">Service:</span> {booking.issue || 'Not specified'}</p>
-              <p className="text-b-sm"><span className="text-neutral-500">Date:</span> {selectedDate} at {selectedSlot}</p>
+              {cart && cart.length > 0 && (
+                <div className="text-b-sm pt-2 border-t border-neutral-200 mt-2">
+                  <span className="text-neutral-500 block mb-1">Spare Parts/Items:</span>
+                  <ul className="list-disc list-inside">
+                    {cart.map((item, idx) => (
+                      <li key={idx}>{item.name} (x{item.quantity}) - ₹{item.price * item.quantity}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-b-sm border-t border-neutral-200 pt-2 mt-2"><span className="text-neutral-500">Date:</span> {selectedDate} at {selectedSlot}</p>
               <p className="text-b-sm"><span className="text-neutral-500">Mode:</span> {serviceMode}</p>
-              <p className="text-b-sm"><span className="text-neutral-500">Price:</span> {booking.priceLabel || 'Quote on inspection'}</p>
             </div>
             <div className="space-y-3">
               <Link
@@ -222,11 +266,11 @@ export default function Booking() {
 
           <button
             onClick={handleSubmit}
-            disabled={!selectedDate || !selectedSlot || !customerName || !customerPhone || ((serviceMode === 'pickup' || serviceMode === 'courier') && !address)}
+            disabled={!selectedDate || !selectedSlot || !customerName || !customerPhone || ((serviceMode === 'pickup' || serviceMode === 'courier') && !address) || isSubmitting}
             className="w-full flex items-center justify-center gap-2 bg-neutral-950 text-white py-3.5 rounded-lg text-b-sm font-semibold hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Confirm Booking
-            <Check className="w-4 h-4" />
+            {isSubmitting ? 'Confirming...' : 'Confirm Booking'}
+            {!isSubmitting && <Check className="w-4 h-4" />}
           </button>
         </div>
       </div>
