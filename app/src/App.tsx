@@ -11,6 +11,7 @@ import Devices from '@/pages/Devices';
 import Repair from '@/pages/Repair';
 import Shop from '@/pages/Shop';
 import Booking from '@/pages/Booking';
+import SparePartsCheckout from '@/pages/SparePartsCheckout';
 import TrackRepair from '@/pages/TrackRepair';
 import MyAccount from '@/pages/MyAccount';
 import Contact from '@/pages/Contact';
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/shop/:slug" element={<Shop />} />
           <Route path="/booking" element={<Booking />} />
           <Route path="/booking/confirmation" element={<Booking />} />
+          <Route path="/checkout" element={<SparePartsCheckout />} />
           <Route path="/track-repair" element={<TrackRepair />} />
           <Route path="/my-account" element={<MyAccount />} />
           <Route path="/contact" element={<Contact />} />

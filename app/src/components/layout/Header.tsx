@@ -91,15 +91,15 @@ export default function Header() {
                 )}
               </button>
 
-              <button
-                onClick={() => isLoggedIn ? null : setLoginModalOpen(true)}
+              <Link
+                to="/my-account"
                 className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-md text-b-sm font-medium transition-colors ${
                   isTransparent ? 'text-white/80 hover:text-white hover:bg-white/10' : 'text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100'
                 }`}
               >
                 <User className="w-4 h-4" />
                 <span>Account</span>
-              </button>
+              </Link>
 
               {/* Repair CTA — always visible, right of navbar */}
               <Link
@@ -143,15 +143,13 @@ export default function Header() {
                 </Link>
               ))}
               <div className="border-t border-neutral-200 mt-2 pt-2">
-                <button
-                  onClick={() => {
-                    setMobileOpen(false);
-                    setLoginModalOpen(true);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-lg text-b-sm font-medium text-neutral-600 hover:bg-neutral-50"
+                <Link
+                  onClick={() => setMobileOpen(false)}
+                  to="/my-account"
+                  className="block w-full text-left px-4 py-3 rounded-lg text-b-sm font-medium text-neutral-600 hover:bg-neutral-50"
                 >
                   My Account
-                </button>
+                </Link>
                 <a href="tel:+919876543210" className="flex items-center gap-2 px-4 py-3 rounded-lg text-b-sm font-medium text-neutral-600 hover:bg-neutral-50">
                   <Phone className="w-4 h-4" />
                   +91 98765 43210

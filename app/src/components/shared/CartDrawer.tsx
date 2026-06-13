@@ -1,9 +1,10 @@
 import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 export default function CartDrawer() {
   const { cartOpen, setCartOpen, cart, removeFromCart, addToCart, isLoggedIn, setLoginModalOpen } = useStore();
+  const navigate = useNavigate();
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -115,6 +116,7 @@ export default function CartDrawer() {
                   return;
                 }
                 setCartOpen(false);
+                navigate('/checkout');
               }}
               className="w-full flex items-center justify-center gap-2 bg-neutral-950 text-white py-3 rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors"
             >
