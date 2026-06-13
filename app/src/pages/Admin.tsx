@@ -659,7 +659,7 @@ function SparePartsTab() {
   const fetchOrders = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "tickets"));
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       const spareOrders = data.filter(d => d.cart && d.cart.length > 0 && d.deviceType === 'unknown');
       spareOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setOrders(spareOrders);
