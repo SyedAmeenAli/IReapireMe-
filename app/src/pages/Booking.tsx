@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { Check, ArrowLeft, Calendar, Clock, MapPin, Home, Package, Truck, User, Phone, Mail, FileText, ChevronRight, MessageCircle } from 'lucide-react';
 import { useStore } from '@/store/useStore';
@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export default function Booking() {
-  const { booking, updateBooking, resetBooking, cart, clearCart } = useStore();
+  const { booking, updateBooking, resetBooking, cart, clearCart, userName, userPhone, userEmail } = useStore();
   const [confirmed, setConfirmed] = useState(false);
   const [serviceMode, setServiceMode] = useState<'pickup' | 'dropoff' | 'courier'>('dropoff');
   const [selectedDate, setSelectedDate] = useState('');
@@ -16,6 +16,12 @@ export default function Booking() {
   const [customerEmail, setCustomerEmail] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (userName) setCustomerName(userName);
+    if (userPhone) setCustomerPhone(userPhone.replace(/\D/g, '').slice(-10));
+    if (userEmail && !userEmail.endsWith('@irepairme.temp')) setCustomerEmail(userEmail);
+  }, [userName, userPhone, userEmail]);
 
   const timeSlots = [
     '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',

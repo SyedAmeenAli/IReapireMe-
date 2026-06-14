@@ -1,10 +1,11 @@
 import { Link, useParams } from 'react-router';
-import { Search, ChevronRight, ArrowLeft, Smartphone, Filter } from 'lucide-react';
+import { Search, ChevronRight, ArrowLeft, Smartphone, Filter, ShoppingCart } from 'lucide-react';
 import { brands, getBrandBySlug } from '@/data/brands';
 import { deviceModels, getModelsByBrand, getModelBySlug } from '@/data/devices';
 import { pricingData } from '@/data/pricing';
 import { services } from '@/data/services';
 import { useState, useMemo } from 'react';
+import { useStore } from '@/store/useStore';
 
 export default function Devices() {
   const { brandSlug, modelSlug } = useParams<{ brandSlug?: string; modelSlug?: string }>();
@@ -194,6 +195,7 @@ function BrandDetail({ brand }: { brand: NonNullable<ReturnType<typeof getBrandB
 function ModelDetail({ model, brand }: { model: NonNullable<ReturnType<typeof getModelBySlug>>; brand: NonNullable<ReturnType<typeof getBrandBySlug>> }) {
   const pricing = pricingData.filter((p) => p.deviceModel === model.name);
   const availableServices = services.filter((s) => model.services.includes(s.slug));
+  const { addToCart, setCartOpen, isLoggedIn, setLoginModalOpen } = useStore();
 
   return (
     <div className="pt-24 pb-20">
@@ -223,6 +225,7 @@ function ModelDetail({ model, brand }: { model: NonNullable<ReturnType<typeof ge
                       <th className="text-left py-3 px-5 text-b-xs font-medium text-neutral-500">Service</th>
                       <th className="text-left py-3 px-5 text-b-xs font-medium text-neutral-500">Time</th>
                       <th className="text-left py-3 px-5 text-b-xs font-medium text-neutral-500">Price</th>
+                      <th className="text-right py-3 px-5 text-b-xs font-medium text-neutral-500">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -234,6 +237,33 @@ function ModelDetail({ model, brand }: { model: NonNullable<ReturnType<typeof ge
                           <span className="text-b-sm font-semibold text-neutral-950">
                             {p.price > 0 ? `₹${p.price.toLocaleString()}` : 'N/A'}
                           </span>
+                        </td>
+                        <td className="py-3 px-5 text-right">
+                          {p.price > 0 && (
+                            <button
+                              onClick={() => {
+                                if (!isLoggedIn) {
+                                  setLoginModalOpen(true);
+                                  return;
+                                }
+                                addToCart({
+                                  id: p.id,
+                                  type: 'repair',
+                                  name: `${p.deviceModel} - ${p.service}`,
+                                  deviceBrand: p.brand,
+                                  deviceModel: p.deviceModel,
+                                  price: p.price,
+                                  priceLabel: `₹${p.price.toLocaleString()}`,
+                                  quantity: 1,
+                                });
+                                setCartOpen(true);
+                              }}
+                              className="p-1.5 bg-neutral-950 text-white rounded-md hover:bg-neutral-800 transition-colors inline-flex items-center justify-center"
+                              title="Add to Cart"
+                            >
+                              <ShoppingCart className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

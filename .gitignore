@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+app/node_modules/
+backend/node_modules/
+
+# Build outputs
+dist/
+app/dist/
+backend/dist/
+build/
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# OS metadata
+.DS_Store
+Thumbs.db
