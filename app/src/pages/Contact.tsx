@@ -32,7 +32,7 @@ export default function Contact() {
                   <Phone className="w-5 h-5 text-neutral-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-b-sm font-medium text-neutral-950">Phone</p>
-                    <a href="tel:+919876543210" className="text-b-sm text-neutral-500 hover:text-neutral-950">+91 98765 43210</a>
+                    <a href="tel:+918919076275" className="text-b-sm text-neutral-500 hover:text-neutral-950">+91 89190 76275</a>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -46,7 +46,7 @@ export default function Contact() {
                   <MapPin className="w-5 h-5 text-neutral-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-b-sm font-medium text-neutral-950">Address</p>
-                    <p className="text-b-sm text-neutral-500">42, MG Road, Bangalore - 560001</p>
+                    <p className="text-b-sm text-neutral-500">Shop No 203, 2nd Floor, Podium Mall, Toli Chowki, Hyderabad, Telangana 500008</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -64,7 +64,7 @@ export default function Contact() {
               <h3 className="text-h-sm text-neutral-950 mb-3">Quick Support</h3>
               <p className="text-b-sm text-neutral-500 mb-4">Get instant help via WhatsApp</p>
               <a
-                href="https://wa.me/919876543210"
+                href="https://wa.me/918919076275"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-lg text-b-sm font-medium hover:bg-green-600 transition-colors"

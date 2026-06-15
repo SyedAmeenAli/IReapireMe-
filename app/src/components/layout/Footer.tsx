@@ -42,9 +42,9 @@ export default function Footer() {
               Professional device restoration with certified precision. 90-day warranty on all repairs.
             </p>
             <div className="space-y-2">
-              <a href="tel:+919876543210" className="flex items-center gap-2 text-b-sm text-neutral-400 hover:text-white transition-colors">
+              <a href="tel:+918919076275" className="flex items-center gap-2 text-b-sm text-neutral-400 hover:text-white transition-colors">
                 <Phone className="w-4 h-4" />
-                +91 98765 43210
+                +91 89190 76275
               </a>
               <a href="mailto:support@irepairme.in" className="flex items-center gap-2 text-b-sm text-neutral-400 hover:text-white transition-colors">
                 <Mail className="w-4 h-4" />
@@ -52,7 +52,7 @@ export default function Footer() {
               </a>
               <div className="flex items-start gap-2 text-b-sm text-neutral-400">
                 <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>42, MG Road, Bangalore - 560001</span>
+                <span>Shop No 203, 2nd Floor, Podium Mall, Toli Chowki, Hyderabad, Telangana 500008</span>
               </div>
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function Footer() {
             &copy; 2026 iRepairMe. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="text-b-xs text-neutral-500 hover:text-white transition-colors">
+            <a href="https://wa.me/918919076275" target="_blank" rel="noopener noreferrer" className="text-b-xs text-neutral-500 hover:text-white transition-colors">
               WhatsApp
             </a>
             <a href="#" className="text-b-xs text-neutral-500 hover:text-white transition-colors">

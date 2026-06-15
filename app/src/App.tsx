@@ -43,11 +43,11 @@ export default function App() {
       {!isAdmin && !isRepair && <Header />}
       {/* Minimal logo-only bar on /repair */}
       {isRepair && (
-        <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-neutral-200 shadow-sm">
+        <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-neutral-200 shadow-sm">
           <div className="container-main">
             <div className="flex items-center h-[72px]">
               <Link to="/" className="flex items-center gap-2 shrink-0 bg-white px-2.5 py-1 rounded-xl shadow-sm border border-neutral-200/50">
-                <img src="/images/logo.png" alt="iRepairMe Logo" className="h-8 w-auto object-contain" />
+                <img src="/images/logo.png" alt="iRepairMe Logo" className="h-11 w-auto object-contain" />
               </Link>
             </div>
           </div>

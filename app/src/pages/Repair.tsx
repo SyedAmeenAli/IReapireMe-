@@ -353,8 +353,9 @@ export default function Repair() {
                       Book Repair
                       <ArrowRight className="w-4 h-4" />
                     </button>
+
                     <a
-                      href="https://wa.me/919876543210"
+                      href="https://wa.me/918919076275"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full flex items-center justify-center gap-2 border border-neutral-300 text-neutral-700 py-3.5 rounded-lg text-b-sm font-medium hover:bg-neutral-50 transition-colors"

@@ -86,7 +86,7 @@ export default function FAQPage() {
         <div className="mt-10 bg-neutral-50 rounded-xl border border-neutral-200 p-6 text-center">
           <p className="text-b-sm text-neutral-600 mb-3">Still have questions? Chat with us on WhatsApp</p>
           <a
-            href="https://wa.me/919876543210"
+            href="https://wa.me/918919076275"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-lg text-b-sm font-medium hover:bg-green-600 transition-colors"

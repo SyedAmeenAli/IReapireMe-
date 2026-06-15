@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router';
-import { Menu, X, Phone, User, ShoppingCart } from 'lucide-react';
+import { Menu, X, MapPin, User, ShoppingCart } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 
 const navLinks = [
@@ -29,23 +29,19 @@ export default function Header() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  const isTransparent = isHome && !scrolled && !mobileOpen;
+  const isTransparent = false;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isTransparent
-            ? 'bg-transparent border-b border-white/10'
-            : 'bg-white/95 backdrop-blur-md border-b border-neutral-200 shadow-nav'
-        }`}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-white border-b border-neutral-200 shadow-nav`}
       >
         <div className="container-main">
           <div className="flex items-center justify-between h-[72px]">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 shrink-0 bg-white px-2.5 py-1 rounded-xl shadow-sm border border-neutral-200/50">
-              <img src="/images/logo.png" alt="iRepairMe Logo" className="h-8 w-auto object-contain" />
+              <img src="/images/logo.png" alt="iRepairMe Logo" className="h-11 w-auto object-contain" />
             </Link>
 
             {/* Desktop Nav */}
@@ -54,7 +50,7 @@ export default function Header() {
                 <Link
                   key={link.href}
                   to={link.href}
-                  className={`px-3 py-2 rounded-md text-b-sm font-medium transition-colors ${
+                  className={`px-3 py-2 rounded-md text-b-base font-semibold transition-colors ${
                     isTransparent
                       ? 'text-white/80 hover:text-white hover:bg-white/10'
                       : 'text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100'
@@ -68,13 +64,15 @@ export default function Header() {
             {/* Right Actions */}
             <div className="flex items-center gap-2">
               <a
-                href="tel:+919876543210"
-                className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-md text-b-sm font-medium transition-colors ${
-                  isTransparent ? 'text-white/80 hover:text-white' : 'text-neutral-600 hover:text-neutral-950'
+                href="https://maps.app.goo.gl/T3JJ1Veib3dvWwmt5"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-1.5 px-2.5 py-2 md:px-3 rounded-md text-b-base font-semibold transition-colors ${
+                  isTransparent ? 'text-white/80 hover:text-white hover:bg-white/10' : 'text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100'
                 }`}
               >
-                <Phone className="w-4 h-4" />
-                <span className="hidden xl:inline">+91 98765 43210</span>
+                <MapPin className="w-5 h-5 md:w-4 md:h-4" />
+                <span className="hidden md:inline">Find My Store</span>
               </a>
 
               <button
@@ -93,7 +91,7 @@ export default function Header() {
 
               <Link
                 to="/my-account"
-                className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-md text-b-sm font-medium transition-colors ${
+                className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-md text-b-base font-semibold transition-colors ${
                   isTransparent ? 'text-white/80 hover:text-white hover:bg-white/10' : 'text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100'
                 }`}
               >
@@ -150,9 +148,14 @@ export default function Header() {
                 >
                   My Account
                 </Link>
-                <a href="tel:+919876543210" className="flex items-center gap-2 px-4 py-3 rounded-lg text-b-sm font-medium text-neutral-600 hover:bg-neutral-50">
-                  <Phone className="w-4 h-4" />
-                  +91 98765 43210
+                <a
+                  href="https://maps.app.goo.gl/T3JJ1Veib3dvWwmt5"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg text-b-sm font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  <MapPin className="w-4 h-4" />
+                  Find My Store
                 </a>
               </div>
             </nav>

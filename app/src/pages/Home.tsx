@@ -200,31 +200,73 @@ function HowItWorks() {
 
 /* ─── Brand Matrix ─── */
 function BrandMatrix() {
+  const matrixBrands = [
+    {
+      id: 'samsung',
+      name: 'Samsung',
+      href: '/devices/samsung',
+      image: '/images/brand-matrix-samsung.png',
+      btnText: 'Start a Samsung repair'
+    },
+    {
+      id: 'apple',
+      name: 'Apple',
+      href: '/devices/apple',
+      image: '/images/brand-matrix-apple.png',
+      btnText: 'Start an Apple repair'
+    },
+    {
+      id: 'google',
+      name: 'Google',
+      href: '/devices/google',
+      image: '/images/brand-matrix-google.png',
+      btnText: 'Start a Google repair'
+    },
+    {
+      id: 'ps5',
+      name: 'PS5',
+      href: '/repair',
+      image: '/images/brand-matrix-ps5.png',
+      btnText: 'Start a PS5 repair'
+    },
+    {
+      id: 'laptop',
+      name: 'Laptop',
+      href: '/repair',
+      image: '/images/brand-matrix-laptop.png',
+      btnText: 'Start a laptop repair'
+    }
+  ];
+
   return (
     <section className="py-20 bg-neutral-950 relative overflow-hidden">
       <div className="absolute inset-0 bg-grid-pattern-dark opacity-30" />
       <div className="container-main relative z-10">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
-          <div>
-            <p className="text-b-xs font-medium text-neutral-500 tracking-widest uppercase mb-2">Supported Brands</p>
-            <h2 className="text-h-xxl text-white">The Brand Repair Matrix</h2>
-          </div>
-          <p className="text-b-lg text-neutral-400 max-w-md">
-            Browse our comprehensive catalog of supported devices organized by series and release generation for technical restoration.
+        <div className="mb-12 max-w-3xl">
+          <h2 className="text-h-xxl text-white mb-3 font-bold">The brand other brands trust</h2>
+          <p className="text-b-lg text-neutral-400">
+            iRepairMe is a trusted repair provider for the world's top tech brands. Cue the mic drop.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {brands.slice(0, 12).map((brand) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+          {matrixBrands.map((brand) => (
             <Link
               key={brand.id}
-              to={`/devices/${brand.slug}`}
-              className="group bg-neutral-900 border border-neutral-800 rounded-xl p-5 hover:border-neutral-600 transition-all"
+              to={brand.href}
+              className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-neutral-200 shadow-sm hover:shadow-card-hover transition-all duration-300"
             >
-              <h3 className="text-h-sm text-white mb-1 group-hover:text-neutral-200">{brand.name}</h3>
-              <p className="text-b-xs text-neutral-500 mb-3">{brand.popularModels.length} models</p>
-              <div className="flex items-center gap-1 text-b-xs text-neutral-400 group-hover:text-white transition-colors">
-                Explore <ChevronRight className="w-3 h-3" />
+              <div className="aspect-[1.5] w-full overflow-hidden bg-neutral-50 relative border-b border-neutral-100">
+                <img
+                  src={brand.image}
+                  alt={brand.name}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
+                />
+              </div>
+              <div className="bg-white p-5 flex flex-col justify-between flex-1 text-left">
+                <span className="text-b-base sm:text-b-lg font-bold text-neutral-950 group-hover:text-neutral-800 transition-colors leading-tight">
+                  {brand.btnText}
+                </span>
               </div>
             </Link>
           ))}
@@ -449,14 +491,14 @@ function StoreLocation() {
               allowFullScreen 
               loading="lazy" 
               referrerPolicy="no-referrer-when-downgrade"
-              title="iRepairMe Jubilee Hills Store Location Map"
+              title="iRepairMe Store Location Map"
             />
           </div>
 
           {/* Details Card */}
           <div className="lg:col-span-5 flex flex-col justify-between bg-neutral-50 border border-neutral-200 rounded-2xl p-6 lg:p-8 animate-fade-in">
             <div>
-              <h3 className="text-h-sm text-neutral-950 mb-6 font-semibold">Jubilee Hills Service Center</h3>
+              <h3 className="text-h-sm text-neutral-950 mb-6 font-semibold">iRepairMe - Service Center</h3>
               
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
@@ -466,9 +508,9 @@ function StoreLocation() {
                   <div>
                     <h4 className="text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Store Address</h4>
                     <p className="text-b-sm text-neutral-950 mt-1 leading-relaxed">
-                      Slab No 4, Ground Floor, Plot No 1228A,<br />
-                      Road No. 60, Jubilee Hills,<br />
-                      Hyderabad, Telangana 500033
+                      Shop No 203, 2nd Floor, Podium Mall,<br />
+                      Daulat Gulshan Colony, Janaki Nagar Colony, Toli Chowki,<br />
+                      Hyderabad, Telangana 500008
                     </p>
                   </div>
                 </div>
@@ -493,7 +535,7 @@ function StoreLocation() {
                   <div>
                     <h4 className="text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Contact Info</h4>
                     <p className="text-b-sm text-neutral-950 mt-1">
-                      Phone: <a href="tel:+919876543210" className="hover:text-neutral-600 transition-colors font-medium">+91 98765 43210</a>
+                      Phone: <a href="tel:+918919076275" className="hover:text-neutral-600 transition-colors font-medium">+91 89190 76275</a>
                     </p>
                     <p className="text-b-sm text-neutral-950">
                       Email: <a href="mailto:support@irepairme.in" className="hover:text-neutral-600 transition-colors font-medium">support@irepairme.in</a>
@@ -505,7 +547,7 @@ function StoreLocation() {
 
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <a 
-                href="https://maps.google.com/?q=iRepairMe+-+Service+Center+Jubilee+Hills" 
+                href="https://maps.google.com/?q=iRepairMe+-+Service+Center+Toli+Chowki" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-neutral-950 text-white rounded-xl text-b-sm font-semibold hover:bg-neutral-800 transition-all text-center flex-1 shadow-sm"
