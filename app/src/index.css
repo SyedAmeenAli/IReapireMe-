@@ -206,8 +206,8 @@
     display: inline-flex !important;
     align-items: center !important;
     white-space: nowrap !important;
-    font-size: 0.875rem !important;
-    line-height: 1.25rem !important;
+    font-size: 1rem !important;
+    line-height: 1.5rem !important;
     text-decoration: none !important;
   }
 

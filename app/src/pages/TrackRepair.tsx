@@ -100,7 +100,7 @@ export default function TrackRepair() {
                   type="tel"
                   value={searchPhone}
                   onChange={(e) => setSearchPhone(e.target.value)}
-                  placeholder="e.g. 9876543210"
+                  placeholder="e.g. 8919076275"
                   className="flex-1 px-3 py-2.5 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
@@ -216,7 +216,7 @@ export default function TrackRepair() {
             {/* Contact */}
             <div className="flex gap-3">
               <a
-                href="https://wa.me/919876543210"
+                href="https://wa.me/918919076275"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 border border-neutral-300 text-neutral-700 py-3 rounded-lg text-b-sm font-medium hover:bg-neutral-50 transition-colors"
@@ -225,7 +225,7 @@ export default function TrackRepair() {
                 WhatsApp
               </a>
               <a
-                href="tel:+919876543210"
+                href="tel:+918919076275"
                 className="flex-1 flex items-center justify-center gap-2 border border-neutral-300 text-neutral-700 py-3 rounded-lg text-b-sm font-medium hover:bg-neutral-50 transition-colors"
               >
                 <Phone className="w-4 h-4" />

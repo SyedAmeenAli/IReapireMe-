@@ -310,7 +310,7 @@ function ModelDetail({ model, brand }: { model: NonNullable<ReturnType<typeof ge
             </Link>
 
             <a
-              href="https://wa.me/919876543210"
+              href="https://wa.me/918919076275"
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full text-center px-6 py-3.5 border border-neutral-300 text-neutral-700 rounded-lg text-b-sm font-medium hover:bg-neutral-50 transition-colors"

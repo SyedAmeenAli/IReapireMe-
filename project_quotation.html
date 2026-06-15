@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Quotation - iRepairMe Web Application</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    :root {
+      --primary: #1abc9c;
+      --primary-dark: #16a085;
+      --text-main: #2d3748;
+      --text-muted: #718096;
+      --bg-light: #f7fafc;
+      --border-color: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-main);
+      background-color: #f3f4f6;
+      line-height: 1.6;
+      padding: 40px 20px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .container {
+      max-width: 850px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 50px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Top decorative border */
+    .container::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+    }
+
+    /* Header styling */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 30px;
+      margin-bottom: 30px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .logo-text {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      letter-spacing: -0.5px;
+    }
+
+    .brand-tagline {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .quote-title-block {
+      text-align: right;
+    }
+
+    .quote-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a202c;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .quote-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Info Section */
+    .info-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .info-block h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .info-block p {
+      font-size: 14px;
+      color: #4a5568;
+      margin-bottom: 4px;
+    }
+
+    .info-block .name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a202c;
+      margin-bottom: 6px;
+    }
+
+    /* Project Summary Card */
+    .summary-card {
+      background: var(--bg-light);
+      border-left: 4px solid var(--primary);
+      padding: 20px;
+      border-radius: 4px;
+      margin-bottom: 40px;
+    }
+
+    .summary-card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a202c;
+      margin-bottom: 8px;
+    }
+
+    .summary-card p {
+      font-size: 14px;
+      color: #4a5568;
+    }
+
+    /* Table Styling */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 40px;
+    }
+
+    th {
+      background-color: var(--bg-light);
+      color: #1a202c;
+      font-weight: 600;
+      text-align: left;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 14px 16px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    td {
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 14px;
+      color: #4a5568;
+      vertical-align: top;
+    }
+
+    .col-milestone {
+      font-weight: 600;
+      color: #1a202c;
+      width: 30%;
+    }
+
+    .col-desc {
+      width: 50%;
+    }
+
+    .col-cost {
+      text-align: right;
+      font-weight: 600;
+      color: #1a202c;
+      width: 20%;
+    }
+
+    /* Totals block */
+    .totals-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 40px;
+    }
+
+    .totals-table {
+      width: 300px;
+      margin-bottom: 0;
+    }
+
+    .totals-table td {
+      padding: 10px 16px;
+      border: none;
+    }
+
+    .totals-table tr.grand-total {
+      border-top: 2px solid var(--primary);
+      background-color: var(--bg-light);
+    }
+
+    .totals-table tr.grand-total td {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      padding: 14px 16px;
+    }
+
+    /* Timelines */
+    .timeline-section {
+      margin-bottom: 40px;
+    }
+
+    .timeline-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a202c;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 15px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+    }
+
+    .timeline-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+    }
+
+    .timeline-card {
+      background: var(--bg-light);
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .timeline-card .week {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .timeline-card .phase {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a202c;
+      margin-bottom: 4px;
+    }
+
+    .timeline-card .duration {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Terms Section */
+    .terms {
+      margin-top: 50px;
+      padding-top: 25px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .terms h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .terms ul {
+      list-style-type: disc;
+      padding-left: 20px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .terms li {
+      margin-bottom: 4px;
+    }
+
+    /* Print Button styling (hidden during print) */
+    .no-print-btn {
+      display: block;
+      width: fit-content;
+      margin: 0 auto 20px auto;
+      background-color: var(--primary-dark);
+      color: #ffffff;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: background-color 0.2s;
+    }
+
+    .no-print-btn:hover {
+      background-color: #117a65;
+    }
+
+    /* Print overrides */
+    @media print {
+      body {
+        background-color: #ffffff;
+        padding: 0;
+      }
+      
+      .container {
+        box-shadow: none;
+        padding: 0;
+        max-width: 100%;
+      }
+
+      .no-print-btn {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <button class="no-print-btn" onclick="window.print()">Print / Save as PDF</button>
+
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <span class="logo-text">iRepairMe</span>
+        <span class="brand-tagline">Web Design & Software Development Services</span>
+      </div>
+      <div class="quote-title-block">
+        <h1 class="quote-title">Project Quotation</h1>
+        <div class="quote-meta">
+          <strong>Quote #:</strong> IRM-2026-001<br>
+          <strong>Date:</strong> June 14, 2026<br>
+          <strong>Validity:</strong> 30 Days
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-block">
+        <h3>Prepared By</h3>
+        <p class="name">Shaik Moosa</p>
+        <p>Software Consultant</p>
+        <p>Email: shaikmoosa@example.com</p>
+      </div>
+      <div class="info-block">
+        <h3>Prepared For</h3>
+        <p class="name">iRepairMe Service Center</p>
+        <p>Hyderabad, Telangana</p>
+        <p>India</p>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <h2>Project Scope & Executive Summary</h2>
+      <p>This quotation covers the full-stack design and development of the <strong>iRepairMe web application</strong>. The system will encompass a premium responsive frontend (React 19, Vite, GSAP), SMS OTP-based user authentication (Twilio Verify), cloud databases (MongoDB + Firebase Firestore), an admin control panel for price and booking management, and a tracking system for device repair tickets.</p>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="col-milestone">Phase / Milestone</th>
+          <th class="col-desc">Scope & Deliverables</th>
+          <th class="col-cost">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="col-milestone">Phase 1: Frontend & UI Design</td>
+          <td class="col-desc">Responsive layouts (mobile & desktop), custom design system (Teal theme), smooth animations (GSAP), shopping cart, and multi-step booking stepper.</td>
+          <td class="col-cost">₹10,000.00</td>
+        </tr>
+        <tr>
+          <td class="col-milestone">Phase 2: Authentication & SMS OTP</td>
+          <td class="col-desc">Node.js Express backend integration, JWT-based security middleware, and Twilio SMS verification integration for passwordless logins.</td>
+          <td class="col-cost">₹6,000.00</td>
+        </tr>
+        <tr>
+          <td class="col-milestone">Phase 3: Database Integration</td>
+          <td class="col-desc">Database provisioning and connection (MongoDB Atlas for user schemas, Firebase Firestore for real-time order tracking and cart synchronization).</td>
+          <td class="col-cost">₹4,000.00</td>
+        </tr>
+        <tr>
+          <td class="col-milestone">Phase 4: Admin Dashboard</td>
+          <td class="col-desc">Admin control panel for real-time pricing updates, managing customer bookings, tracking ticket updates, and viewing analytics.</td>
+          <td class="col-cost">₹3,000.00</td>
+        </tr>
+        <tr>
+          <td class="col-milestone">Phase 5: Deploy & Testing</td>
+          <td class="col-desc">Multi-device QA testing, server setup (Vercel + Render + Atlas), custom domain mapping, and final handover.</td>
+          <td class="col-cost">₹2,000.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="totals-wrapper">
+      <table class="totals-table">
+        <tr>
+          <td>Subtotal:</td>
+          <td style="text-align: right;">₹25,000.00</td>
+        </tr>
+        <tr>
+          <td>Taxes:</td>
+          <td style="text-align: right;">₹0.00</td>
+        </tr>
+        <tr class="grand-total">
+          <td>Grand Total:</td>
+          <td style="text-align: right;">₹25,000.00</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="timeline-section">
+      <h2>Estimated Project Timeline</h2>
+      <div class="timeline-grid">
+        <div class="timeline-card">
+          <div class="week">Week 1</div>
+          <div class="phase">Phase 1: UI/UX</div>
+          <div class="duration">Duration: 7 Days</div>
+        </div>
+        <div class="timeline-card">
+          <div class="week">Week 2</div>
+          <div class="phase">Phase 2: APIs & OTP</div>
+          <div class="duration">Duration: 5 Days</div>
+        </div>
+        <div class="timeline-card">
+          <div class="week">Week 3</div>
+          <div class="phase">Phase 3-4: DB & Admin</div>
+          <div class="duration">Duration: 8 Days</div>
+        </div>
+        <div class="timeline-card">
+          <div class="week">Week 4</div>
+          <div class="phase">Phase 5: Go-Live</div>
+          <div class="duration">Duration: 4 Days</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="terms">
+      <h3>Terms & Conditions</h3>
+      <ul>
+        <li>Payment Schedule: 40% Advance, 40% on Beta Link delivery, 20% on final Go-Live.</li>
+        <li>Third-party API costs (e.g., Twilio SMS fees, custom domain purchases) are to be billed directly to the client.</li>
+        <li>Post-launch support is included free of charge for the first 30 days.</li>
+      </ul>
+    </div>
+  </div>
+
+</body>
+</html>

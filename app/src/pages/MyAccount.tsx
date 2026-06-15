@@ -329,7 +329,7 @@ export default function MyAccount() {
                           value={signupPhone}
                           onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                           className="flex-1 px-3 py-2.5 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-950"
-                          placeholder="98765 43210"
+                          placeholder="89190 76275"
                           maxLength={10}
                         />
                       </div>
@@ -395,7 +395,7 @@ export default function MyAccount() {
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                        placeholder="98765 43210"
+                        placeholder="89190 76275"
                         className="flex-1 px-3 py-2.5 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-950"
                         maxLength={10}
                       />

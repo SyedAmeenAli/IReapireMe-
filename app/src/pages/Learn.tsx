@@ -69,7 +69,7 @@ export default function Learn() {
                 </div>
                 <div className="px-6 pb-6">
                   <a
-                    href="https://wa.me/919876543210?text=Hi! I'm interested in the repair training courses."
+                    href="https://wa.me/918919076275?text=Hi! I'm interested in the repair training courses."
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 w-full py-3 bg-neutral-950 text-white rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors"
