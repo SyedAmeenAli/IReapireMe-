@@ -223,13 +223,6 @@ function BrandMatrix() {
       btnText: 'Start a Google repair'
     },
     {
-      id: 'ps5',
-      name: 'PS5',
-      href: '/repair',
-      image: '/images/brand-matrix-ps5.png',
-      btnText: 'Start a PS5 repair'
-    },
-    {
       id: 'laptop',
       name: 'Laptop',
       href: '/repair',
@@ -249,7 +242,7 @@ function BrandMatrix() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {matrixBrands.map((brand) => (
             <Link
               key={brand.id}
