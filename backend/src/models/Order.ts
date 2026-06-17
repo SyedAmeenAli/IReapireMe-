@@ -6,6 +6,7 @@ export enum OrderStatus {
   SHIPPED = 'SHIPPED',
   DELIVERED = 'DELIVERED',
   CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
 }
 
 export interface IOrderItem {
@@ -23,12 +24,20 @@ export interface IOrder extends Document {
   items: IOrderItem[];
   totalAmount: number;
   status: OrderStatus;
+  serviceMode: 'walkin' | 'courier';
+  scheduledDate?: string;
+  scheduledSlot?: string;
+  deliveryFee: number;
+  borzoOrderId?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const OrderItemSchema: Schema = new Schema({
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+  productId: { type: String, required: true },
   quantity: { type: Number, required: true },
   price: { type: Number, required: true },
 });
@@ -43,6 +52,14 @@ const OrderSchema: Schema = new Schema(
     items: [OrderItemSchema],
     totalAmount: { type: Number, required: true },
     status: { type: String, enum: Object.values(OrderStatus), default: OrderStatus.PENDING },
+    serviceMode: { type: String, enum: ['walkin', 'courier'], default: 'walkin' },
+    scheduledDate: { type: String },
+    scheduledSlot: { type: String },
+    deliveryFee: { type: Number, default: 0 },
+    borzoOrderId: { type: String },
+    razorpayOrderId: { type: String, unique: true, sparse: true },
+    razorpayPaymentId: { type: String },
+    razorpaySignature: { type: String },
   },
   { timestamps: true }
 );

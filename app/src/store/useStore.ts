@@ -5,7 +5,7 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export type DeviceType = 'iphone' | 'android' | 'ipad' | 'macbook' | 'watch' | 'airpods' | 'imac' | 'other';
 export type Brand = string;
-export type ServiceMode = 'pickup' | 'dropoff' | 'courier' | 'onsite';
+export type ServiceMode = 'pickup' | 'dropoff' | 'courier' | 'onsite' | 'walkin';
 export type PartQuality = 'oem' | 'high-tier' | 'genuine';
 
 export interface CartItem {

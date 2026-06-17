@@ -21,6 +21,15 @@ export interface IRepairTicket extends Document {
   issueDescription: string;
   status: RepairStatus;
   estimatedCost: number;
+  serviceMode: 'walkin' | 'courier';
+  scheduledDate?: string;
+  scheduledSlot?: string;
+  address?: string;
+  deliveryFee: number;
+  borzoOrderId?: string;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +47,15 @@ const RepairTicketSchema: Schema = new Schema(
     issueDescription: { type: String, required: true },
     status: { type: String, enum: Object.values(RepairStatus), default: RepairStatus.PENDING },
     estimatedCost: { type: Number, required: true },
+    serviceMode: { type: String, enum: ['walkin', 'courier'], default: 'walkin' },
+    scheduledDate: { type: String },
+    scheduledSlot: { type: String },
+    address: { type: String },
+    deliveryFee: { type: Number, default: 0 },
+    borzoOrderId: { type: String },
+    razorpayOrderId: { type: String, unique: true, sparse: true },
+    razorpayPaymentId: { type: String },
+    razorpaySignature: { type: String },
   },
   { timestamps: true }
 );
