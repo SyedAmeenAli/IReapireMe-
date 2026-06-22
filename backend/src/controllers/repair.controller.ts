@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import RepairTicket, { RepairStatus } from '../models/RepairTicket';
+import User from '../models/User';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -138,13 +139,17 @@ export const createTicket = async (req: Request, res: Response): Promise<void> =
 export const getTicketStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { ticketId } = req.params;
-    const ticket = await RepairTicket.findOne({ ticketId });
+    let ticket = await RepairTicket.findOne({ ticketId });
+    if (!ticket) {
+      ticket = await RepairTicket.findOne({ customerPhone: ticketId });
+    }
     if (!ticket) {
       res.status(404).json({ message: 'Ticket not found' });
       return;
     }
     res.json(ticket);
   } catch (error) {
+    console.error('Track Ticket Error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -155,9 +160,41 @@ export const getMyTickets = async (req: AuthRequest, res: Response): Promise<voi
       res.status(401).json({ message: 'Unauthorized' });
       return;
     }
-    const tickets = await RepairTicket.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.json(tickets);
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    const ticketsById = await RepairTicket.find({ userId: user.id });
+
+    let ticketsByEmail: any[] = [];
+    if (user.email && !user.email.endsWith('@irepairme.temp')) {
+      ticketsByEmail = await RepairTicket.find({ customerEmail: user.email });
+    }
+
+    let ticketsByPhone: any[] = [];
+    if (user.phone) {
+      ticketsByPhone = await RepairTicket.find({ customerPhone: user.phone });
+      const last10 = user.phone.replace(/\D/g, '').slice(-10);
+      if (last10.length === 10 && last10 !== user.phone) {
+        const extra = await RepairTicket.find({ customerPhone: last10 });
+        ticketsByPhone = ticketsByPhone.concat(extra);
+      }
+    }
+
+    const ticketsMap = new Map<string, any>();
+    ticketsById.forEach(t => ticketsMap.set(t.ticketId, t));
+    ticketsByEmail.forEach(t => ticketsMap.set(t.ticketId, t));
+    ticketsByPhone.forEach(t => ticketsMap.set(t.ticketId, t));
+
+    const mergedTickets = Array.from(ticketsMap.values());
+    mergedTickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json(mergedTickets);
   } catch (error) {
+    console.error('Get My Tickets Error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -173,7 +210,7 @@ export const getAllTickets = async (req: AuthRequest, res: Response): Promise<vo
 
 export const updateTicketStatus = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { status, estimatedCost } = req.body;
 
     const ticket = await RepairTicket.findByIdAndUpdate(
@@ -189,6 +226,21 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response): Promi
 
     res.json(ticket);
   } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const deleteTicket = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const deleted = await RepairTicket.findByIdAndDelete(id);
+    if (!deleted) {
+      res.status(404).json({ message: 'Ticket not found' });
+      return;
+    }
+    res.json({ message: 'Ticket deleted successfully', deleted });
+  } catch (error) {
+    console.error('Delete Ticket Error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { ChevronRight, ChevronLeft, Search, Check, ArrowRight, Smartphone, Tablet, Laptop, Watch, Headphones, Monitor, FileText, CalendarCheck } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import api from '@/lib/api';
 import { services as staticServices } from '@/data/services';
 import { useStore } from '@/store/useStore';
 
@@ -46,8 +45,8 @@ export default function Repair() {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "services"));
-        setDbServices(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const response = await api.get("/services");
+        setDbServices(response.data);
       } catch (e) {
         console.error("Failed to fetch services", e);
       } finally {

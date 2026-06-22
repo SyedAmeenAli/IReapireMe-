@@ -252,3 +252,68 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+export const getCart = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+    let parsedCart = [];
+    if (user.cart) {
+      try {
+        parsedCart = typeof user.cart === 'string' ? JSON.parse(user.cart) : user.cart;
+      } catch (e) {
+        console.error('Failed to parse user cart JSON:', e);
+      }
+    }
+    res.json({ cart: parsedCart });
+  } catch (error) {
+    console.error('Get Cart Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const updateCart = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const { cart } = req.body;
+    
+    if (!Array.isArray(cart)) {
+      res.status(400).json({ message: 'Cart must be an array' });
+      return;
+    }
+
+    const cartStr = JSON.stringify(cart);
+    const updatedUser = await User.findByIdAndUpdate(userId, { cart: cartStr }, { new: true });
+    
+    if (!updatedUser) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    let parsedCart = [];
+    if (updatedUser.cart) {
+      try {
+        parsedCart = typeof updatedUser.cart === 'string' ? JSON.parse(updatedUser.cart) : updatedUser.cart;
+      } catch (e) {}
+    }
+
+    res.json({ success: true, cart: parsedCart });
+  } catch (error) {
+    console.error('Update Cart Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const getUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const users = await User.find().select('-passwordHash');
+    res.json(users);
+  } catch (error) {
+    console.error('Get Users Error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+

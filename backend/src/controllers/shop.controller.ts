@@ -18,7 +18,7 @@ export const getAllProducts = async (req: Request, res: Response): Promise<void>
 
 export const getProductById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id as string);
     if (!product) {
       res.status(404).json({ message: 'Product not found' });
       return;
@@ -101,7 +101,7 @@ export const getAllOrders = async (req: Request, res: Response): Promise<void> =
 
 export const updateOrderStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { status } = req.body;
 
     const order = await Order.findByIdAndUpdate(id, { status }, { new: true });

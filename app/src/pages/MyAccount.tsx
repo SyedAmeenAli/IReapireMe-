@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { User, Phone, Mail, ChevronRight, LogOut, Package, Copy, Smartphone, ArrowRight, Check, Lock, MapPin } from 'lucide-react';
 import { Link } from 'react-router';
 import { useStore } from '@/store/useStore';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 import { statusColors, statusLabels } from './TrackRepair';
 import api from '@/lib/api';
 
@@ -43,37 +41,10 @@ export default function MyAccount() {
   };
 
   // Fetch tickets matching user's email or phone number
-  const fetchMyTickets = async (emailToSearch: string | null, phoneToSearch: string | null) => {
+  const fetchMyTickets = async () => {
     try {
-      const ticketsMap = new Map<string, any>();
-
-      // Query 1: by Email (if email exists and is not temp)
-      if (emailToSearch && !emailToSearch.endsWith('@irepairme.temp')) {
-        const qEmail = query(collection(db, 'tickets'), where('customerEmail', '==', emailToSearch));
-        const querySnapshotEmail = await getDocs(qEmail);
-        querySnapshotEmail.docs.forEach(doc => {
-          const data = doc.data();
-          ticketsMap.set(data.ticketId, data);
-        });
-      }
-
-      // Query 2: by Phone (if phone exists)
-      if (phoneToSearch) {
-        const cleanedPhone = phoneToSearch.replace(/\D/g, '').slice(-10);
-        if (cleanedPhone.length === 10) {
-          const qPhone = query(collection(db, 'tickets'), where('customerPhone', '==', cleanedPhone));
-          const querySnapshotPhone = await getDocs(qPhone);
-          querySnapshotPhone.docs.forEach(doc => {
-            const data = doc.data();
-            ticketsMap.set(data.ticketId, data);
-          });
-        }
-      }
-
-      const tickets = Array.from(ticketsMap.values());
-      // Sort by latest first (assuming createdAt exists)
-      tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setMyTickets(tickets);
+      const response = await api.get('/repairs/my-tickets');
+      setMyTickets(response.data);
     } catch (e) {
       console.error("Error fetching tickets:", e);
     }
@@ -81,11 +52,11 @@ export default function MyAccount() {
 
   useEffect(() => {
     if (isLoggedIn) {
-      fetchMyTickets(userEmail, userPhone);
+      fetchMyTickets();
     } else {
       setMyTickets([]);
     }
-  }, [isLoggedIn, userEmail, userPhone]);
+  }, [isLoggedIn]);
 
   const handleSendOtp = async () => {
     if (phone.length < 10) {
