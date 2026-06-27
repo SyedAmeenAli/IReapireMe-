@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import api from '@/lib/api';
 
 export type DeviceType = 'iphone' | 'android' | 'ipad' | 'macbook' | 'watch' | 'airpods' | 'imac' | 'other';
 export type Brand = string;
@@ -103,12 +102,14 @@ const initialBooking: BookingState = {
   images: [],
 };
 
-const syncCartToFirebase = async (userId: string | null, cart: CartItem[]) => {
-  if (!userId) return;
+const syncCartToBackend = async (token: string | null, cart: CartItem[]) => {
+  if (!token) return;
   try {
-    await setDoc(doc(db, 'carts', userId), { cart });
+    await api.post('/auth/cart', { cart }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
   } catch (e) {
-    console.error("Error syncing cart to Firebase:", e);
+    console.error("Error syncing cart to backend:", e);
   }
 };
 
@@ -125,73 +126,70 @@ export const useStore = create<AppState>()(
       token: null,
       login: async (phoneOrData, name, email, token, isAdmin, userId) => {
         let resolvedUserId: string | null = null;
+        let resolvedToken: string | null = null;
         let updateState: any = { isLoggedIn: true };
 
         if (typeof phoneOrData === 'object' && phoneOrData !== null) {
           resolvedUserId = phoneOrData.userId || null;
+          resolvedToken = phoneOrData.token || null;
           updateState = {
             isLoggedIn: true,
             userId: resolvedUserId,
             userPhone: phoneOrData.phone || null,
             userEmail: phoneOrData.email || null,
             userName: phoneOrData.name || '',
-            token: phoneOrData.token || null,
+            token: resolvedToken,
             isAdmin: phoneOrData.isAdmin || false,
           };
         } else {
           resolvedUserId = userId || null;
+          resolvedToken = token || null;
           updateState = {
             isLoggedIn: true,
             userId: resolvedUserId,
             userPhone: typeof phoneOrData === 'string' ? phoneOrData : null,
             userEmail: email || null,
             userName: name || '',
-            token: token || null,
+            token: resolvedToken,
             isAdmin: isAdmin || false,
           };
         }
 
         set(updateState);
 
-        // Fetch user's cart from Firebase and merge it with current guest cart
-        if (resolvedUserId) {
+        // Fetch user's cart from backend and merge it with current guest cart
+        if (resolvedToken) {
           try {
-            const cartDoc = await getDoc(doc(db, 'carts', resolvedUserId));
+            const response = await api.get('/auth/cart', {
+              headers: { Authorization: `Bearer ${resolvedToken}` }
+            });
             const guestCart = useStore.getState().cart;
+            const backendCart = response.data.cart || [];
+            const mergedCartMap = new Map<string, CartItem>();
             
-            if (cartDoc.exists()) {
-              const firebaseCart = cartDoc.data().cart || [];
-              const mergedCartMap = new Map<string, CartItem>();
-              
-              // Load firebase items first
-              firebaseCart.forEach((item: CartItem) => {
+            // Load backend items first
+            backendCart.forEach((item: CartItem) => {
+              mergedCartMap.set(item.id, item);
+            });
+            
+            // Merge guest items (combining quantity of identical items)
+            guestCart.forEach((item: CartItem) => {
+              if (mergedCartMap.has(item.id)) {
+                const existing = mergedCartMap.get(item.id)!;
+                mergedCartMap.set(item.id, {
+                  ...existing,
+                  quantity: existing.quantity + item.quantity
+                });
+              } else {
                 mergedCartMap.set(item.id, item);
-              });
-              
-              // Merge guest items (combining quantity of identical items)
-              guestCart.forEach((item: CartItem) => {
-                if (mergedCartMap.has(item.id)) {
-                  const existing = mergedCartMap.get(item.id)!;
-                  mergedCartMap.set(item.id, {
-                    ...existing,
-                    quantity: existing.quantity + item.quantity
-                  });
-                } else {
-                  mergedCartMap.set(item.id, item);
-                }
-              });
-              
-              const finalCart = Array.from(mergedCartMap.values());
-              set({ cart: finalCart });
-              await syncCartToFirebase(resolvedUserId, finalCart);
-            } else {
-              // If no cloud cart exists, upload guest cart as initial cloud cart
-              if (guestCart.length > 0) {
-                await syncCartToFirebase(resolvedUserId, guestCart);
               }
-            }
+            });
+            
+            const finalCart = Array.from(mergedCartMap.values());
+            set({ cart: finalCart });
+            await syncCartToBackend(resolvedToken, finalCart);
           } catch (e) {
-            console.error("Error retrieving or merging cart from Firebase:", e);
+            console.error("Error retrieving or merging cart from backend:", e);
           }
         }
       },
@@ -209,16 +207,16 @@ export const useStore = create<AppState>()(
       cart: [],
       addToCart: (item) => set((state) => {
         const newCart = [...state.cart, item];
-        syncCartToFirebase(state.userId, newCart);
+        syncCartToBackend(state.token, newCart);
         return { cart: newCart };
       }),
       removeFromCart: (id) => set((state) => {
         const newCart = state.cart.filter((i) => i.id !== id);
-        syncCartToFirebase(state.userId, newCart);
+        syncCartToBackend(state.token, newCart);
         return { cart: newCart };
       }),
       clearCart: () => set((state) => {
-        syncCartToFirebase(state.userId, []);
+        syncCartToBackend(state.token, []);
         return { cart: [] };
       }),
       cartOpen: false,

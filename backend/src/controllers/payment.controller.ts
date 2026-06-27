@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import Product from '../models/Product';
 import Order, { OrderStatus } from '../models/Order';
 import borzoService from '../services/borzo.service';
 import RepairTicket, { RepairStatus } from '../models/RepairTicket';
 import mongoose from 'mongoose';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_replace_me_in_production';
 
 let razorpayInstance: Razorpay | null = null;
 
@@ -25,6 +28,16 @@ const getRazorpayInstance = (): Razorpay | null => {
 
 export const createPaymentOrder = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Optional auth extraction
+    let userId: string | undefined;
+    const token = req.header('Authorization')?.split(' ')[1];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        userId = decoded.user.id;
+      } catch (err) {}
+    }
+
     const { items, customerName, customerEmail, customerPhone, shippingAddress,
             serviceMode = 'walkin', expectedDeliveryFee, expiresAt, quoteToken, dropLat, dropLng,
             scheduledDate, scheduledSlot } = req.body;
@@ -118,6 +131,7 @@ export const createPaymentOrder = async (req: Request, res: Response): Promise<v
 
     // 4. Create pending Order record in DB
     const order = new Order({
+      userId,
       customerName,
       customerEmail: customerEmail || '',
       customerPhone,

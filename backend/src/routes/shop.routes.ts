@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { 
-  getAllProducts, getProductById, createProduct, 
-  checkout, getMyOrders, getAllOrders, updateOrderStatus 
+import {
+  getAllProducts, getProductById, createProduct,
+  checkout, getMyOrders, getAllOrders, updateOrderStatus
 } from '../controllers/shop.controller';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.middleware';
 

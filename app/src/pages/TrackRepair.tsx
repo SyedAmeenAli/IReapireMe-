@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Search, Smartphone, Package, CheckCircle2, Clock, AlertCircle, ChevronRight, ArrowRight, MessageCircle, Phone } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import api from '@/lib/api';
 
 const pipelineStages = [
   { key: 'PENDING', label: 'Order Placed' },
@@ -44,18 +43,13 @@ export default function TrackRepair() {
     setIsLoading(true);
 
     try {
-      const ticketsRef = collection(db, 'tickets');
-      let q;
-      if (activeTab === 'phone') {
-        q = query(ticketsRef, where('customerPhone', '==', searchPhone));
-      } else {
-        q = query(ticketsRef, where('ticketId', '==', searchId));
+      const searchValue = activeTab === 'phone' ? searchPhone : searchId;
+      if (!searchValue) {
+        setIsLoading(false);
+        return;
       }
-
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        setResult(querySnapshot.docs[0].data());
-      }
+      const response = await api.get(`/repairs/track/${encodeURIComponent(searchValue)}`);
+      setResult(response.data);
     } catch (error) {
       console.error("Error searching tickets:", error);
     } finally {

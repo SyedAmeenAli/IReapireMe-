@@ -5,6 +5,7 @@ import Footer from '@/components/layout/Footer';
 import LoginModal from '@/components/shared/LoginModal';
 import CartDrawer from '@/components/shared/CartDrawer';
 import WhatsAppButton from '@/components/shared/WhatsAppButton';
+import QueryWidget from '@/components/shared/QueryWidget';
 import Home from '@/pages/Home';
 import Services from '@/pages/Services';
 import Devices from '@/pages/Devices';
@@ -90,6 +91,7 @@ export default function App() {
       <LoginModal />
       <CartDrawer />
       {!isAdmin && !isRepair && <WhatsAppButton />}
+      {!isAdmin && !isRepair && <QueryWidget />}
     </div>
   );
 }

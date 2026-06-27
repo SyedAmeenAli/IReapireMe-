@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
-import { LayoutDashboard, List, ClipboardList, DollarSign, Settings, Search, Download, ChevronRight, BarChart3, Users, Clock, CheckCircle, XCircle, Plus, Trash2, Package } from 'lucide-react';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, updateDoc, doc, setDoc, addDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { LayoutDashboard, List, ClipboardList, DollarSign, Settings, Search, Download, ChevronRight, BarChart3, Users, Clock, CheckCircle, XCircle, Plus, Trash2, Package, X } from 'lucide-react';
+import api from '@/lib/api';
 import { pricingData } from '@/data/pricing';
 import { services as availableServices } from '@/data/services';
 
@@ -34,17 +33,49 @@ export default function Admin() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim().toLowerCase() === 'amanziyan2004@gmail.com') {
-      sessionStorage.setItem('firebaseAdminToken', 'authenticated');
-      setIsAuthenticated(true);
-      setError('');
-    } else {
-      setError('Access Denied. Incorrect email address.');
+    try {
+      const response = await api.post('/auth/login', { email: email.trim(), password });
+      const { token, user } = response.data;
+      
+      if (user.role === 'ADMIN') {
+        sessionStorage.setItem('firebaseAdminToken', 'authenticated');
+        
+        // Retrieve and update Zustand storage structure to persist the admin JWT token
+        const storageStr = localStorage.getItem('irepairme-storage');
+        let state = {};
+        if (storageStr) {
+          try {
+            const parsed = JSON.parse(storageStr);
+            state = parsed.state || {};
+          } catch (err) {}
+        }
+        
+        localStorage.setItem('irepairme-storage', JSON.stringify({
+          state: {
+            ...state,
+            isLoggedIn: true,
+            userId: user.id,
+            userEmail: user.email,
+            userName: user.name,
+            isAdmin: true,
+            token: token
+          },
+          version: 0
+        }));
+        
+        setIsAuthenticated(true);
+        setError('');
+      } else {
+        setError('Access Denied. You do not have administrator privileges.');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
     }
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem('firebaseAdminToken');
+    localStorage.removeItem('irepairme-storage');
     setIsAuthenticated(false);
   };
 
@@ -152,11 +183,10 @@ function OverviewTab() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "tickets"));
-        const ticketsData = querySnapshot.docs.map(doc => doc.data());
-        setSubmissions(ticketsData);
+        const response = await api.get("/repairs/admin");
+        setSubmissions(response.data);
       } catch (e) {
-        console.error("Firebase Error:", e);
+        console.error("Fetch Stats Error:", e);
       }
     };
     fetchStats();
@@ -204,9 +234,8 @@ function RepairTicketsTab() {
 
   const fetchSubmissions = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "tickets"));
-      const ticketsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setSubmissions(ticketsData);
+      const response = await api.get("/repairs/admin");
+      setSubmissions(response.data);
     } catch (e) {
       console.error(e);
     }
@@ -218,7 +247,7 @@ function RepairTicketsTab() {
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, "tickets", id), { status: newStatus });
+      await api.put(`/repairs/admin/${id}`, { status: newStatus });
       fetchSubmissions(); // refresh
       if (selectedSubmission && selectedSubmission.id === id) {
         setSelectedSubmission({ ...selectedSubmission, status: newStatus });
@@ -355,11 +384,78 @@ function LeadsTab() {
   const [search, setSearch] = useState('');
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
 
+  // Manual lead creation states
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newDeviceType, setNewDeviceType] = useState('iphone');
+  const [newBrand, setNewBrand] = useState('');
+  const [newDeviceModel, setNewDeviceModel] = useState('');
+  const [newIssue, setNewIssue] = useState('');
+  const [newCost, setNewCost] = useState('');
+  const [newServiceMode, setNewServiceMode] = useState<'walkin' | 'courier'>('walkin');
+  const [newAddress, setNewAddress] = useState('');
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+  const [leadError, setLeadError] = useState('');
+
+  const closeAddModal = () => {
+    setIsAddModalOpen(false);
+    setNewName('');
+    setNewPhone('');
+    setNewEmail('');
+    setNewDeviceType('iphone');
+    setNewBrand('');
+    setNewDeviceModel('');
+    setNewIssue('');
+    setNewCost('');
+    setNewServiceMode('walkin');
+    setNewAddress('');
+    setLeadError('');
+  };
+
+  const handleAddLeadSubmit = async (e: React.FormEvent, force: boolean = false) => {
+    if (e) e.preventDefault();
+    setLeadError('');
+    setIsSubmittingLead(true);
+
+    try {
+      await api.post('/repairs/admin/create-lead', {
+        customerName: newName,
+        customerPhone: newPhone,
+        customerEmail: newEmail,
+        deviceType: newDeviceType,
+        brand: newBrand,
+        deviceModel: newDeviceModel,
+        issueDescription: newIssue,
+        estimatedCost: newCost ? Number(newCost) : 0,
+        serviceMode: newServiceMode,
+        address: newServiceMode === 'courier' ? newAddress : undefined,
+        force
+      });
+      
+      closeAddModal();
+      fetchLeads();
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        const confirm = window.confirm(
+          `A pending lead already exists for this customer and device (ID: ${err.response.data.existingTicketId}). Do you want to create it anyway?`
+        );
+        if (confirm) {
+          await handleAddLeadSubmit(e, true);
+        }
+      } else {
+        setLeadError(err.response?.data?.message || 'Failed to create lead.');
+      }
+    } finally {
+      setIsSubmittingLead(false);
+    }
+  };
+
   const fetchLeads = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "tickets"));
-      const ticketsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setSubmissions(ticketsData);
+      const response = await api.get("/repairs/admin");
+      setSubmissions(response.data);
     } catch (e) {
       console.error(e);
     }
@@ -371,7 +467,7 @@ function LeadsTab() {
 
   const convertToTicket = async (id: string) => {
     try {
-      await updateDoc(doc(db, "tickets", id), { status: "DIAGNOSING" });
+      await api.put(`/repairs/admin/${id}`, { status: "DIAGNOSING" });
       fetchLeads();
       setSelectedLead(null);
     } catch (e) {
@@ -382,7 +478,7 @@ function LeadsTab() {
   const dismissLead = async (id: string) => {
     if (!window.confirm("Are you sure you want to dismiss (delete) this lead?")) return;
     try {
-      await deleteDoc(doc(db, "tickets", id));
+      await api.delete(`/repairs/admin/${id}`);
       fetchLeads();
       setSelectedLead(null);
     } catch (e) {
@@ -402,6 +498,12 @@ function LeadsTab() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-h-lg text-neutral-950">Leads</h2>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="px-4 py-2 text-b-sm bg-neutral-950 text-white font-medium rounded-lg hover:bg-neutral-800 transition-colors"
+        >
+          Add New Lead
+        </button>
       </div>
 
       <div className="relative mb-6">
@@ -434,7 +536,21 @@ function LeadsTab() {
             ) : (
               filtered.map((s) => (
                 <tr key={s.id} onClick={() => setSelectedLead(s)} className="border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer">
-                  <td className="py-3 px-4 text-b-xs font-mono text-neutral-600">{s.ticketId}</td>
+                  <td className="py-3 px-4">
+                    <span className="font-mono text-neutral-600 block text-b-xs mb-1">{s.ticketId}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-wide ${
+                      s.source === 'website_booking' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                      s.source === 'admin_manual' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
+                      s.source === 'query_widget' ? 'bg-teal-50 text-teal-600 border border-teal-100' :
+                      s.source === 'repairshopr_import' || s.source === 'repairshopr_pull' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
+                      'bg-blue-50 text-blue-600 border border-blue-100'
+                    }`}>
+                      {s.source === 'website_booking' ? 'Website' :
+                       s.source === 'admin_manual' ? 'Manual' :
+                       s.source === 'query_widget' ? 'Query' :
+                       'RepairShopr'}
+                    </span>
+                  </td>
                   <td className="py-3 px-4">
                     <p className="text-b-sm text-neutral-950">{s.customerName}</p>
                     <p className="text-b-xs text-neutral-500">{s.customerPhone}</p>
@@ -521,12 +637,164 @@ function LeadsTab() {
           </div>
         </div>
       )}
+
+      {/* Add Lead Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAddModal} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-slide-in-right z-10 text-left">
+            <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
+              <h3 className="text-h-sm text-neutral-950 font-bold">Add New Lead</h3>
+              <button onClick={closeAddModal} className="p-1 hover:bg-neutral-100 rounded">
+                <X className="w-5 h-5 text-neutral-500" />
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => handleAddLeadSubmit(e)} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {leadError && (
+                <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-b-xs">
+                  {leadError}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Customer Name *</label>
+                  <input
+                    type="text" required value={newName} onChange={(e) => setNewName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Phone (10-digit) *</label>
+                  <input
+                    type="tel" required value={newPhone} onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Email Address *</label>
+                <input
+                  type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Device Type *</label>
+                  <select
+                    value={newDeviceType} onChange={(e) => setNewDeviceType(e.target.value)}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white"
+                  >
+                    <option value="iphone">iPhone</option>
+                    <option value="android">Android</option>
+                    <option value="ipad">iPad</option>
+                    <option value="macbook">MacBook</option>
+                    <option value="laptop">Laptop</option>
+                    <option value="watch">Watch</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Brand *</label>
+                  <input
+                    type="text" required value={newBrand} onChange={(e) => setNewBrand(e.target.value)}
+                    placeholder="Apple"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Model *</label>
+                  <input
+                    type="text" required value={newDeviceModel} onChange={(e) => setNewDeviceModel(e.target.value)}
+                    placeholder="iPhone 15"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Explain Issue *</label>
+                  <span className={`text-[10px] ${newIssue.length > 500 ? 'text-red-500' : 'text-neutral-400'}`}>
+                    {newIssue.length}/500
+                  </span>
+                </div>
+                <textarea
+                  required value={newIssue} onChange={(e) => setNewIssue(e.target.value.slice(0, 500))}
+                  placeholder="Describe what is wrong with the device"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Estimated Cost (₹) <span className="text-neutral-400 font-normal">(Optional)</span></label>
+                  <input
+                    type="number" value={newCost} onChange={(e) => setNewCost(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Service Mode</label>
+                  <select
+                    value={newServiceMode} onChange={(e) => setNewServiceMode(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white"
+                  >
+                    <option value="walkin">Walk-in</option>
+                    <option value="courier">Courier</option>
+                  </select>
+                </div>
+              </div>
+
+              {newServiceMode === 'courier' && (
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Address *</label>
+                  <textarea
+                    required={newServiceMode === 'courier'}
+                    value={newAddress} onChange={(e) => setNewAddress(e.target.value)}
+                    placeholder="Enter pickup/delivery address"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 resize-none"
+                  />
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-neutral-200 flex gap-3">
+                <button
+                  type="button" onClick={closeAddModal}
+                  className="flex-1 py-2 border border-neutral-300 text-neutral-700 rounded-lg text-b-sm font-medium hover:bg-neutral-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit" disabled={isSubmittingLead || newPhone.length !== 10}
+                  className="flex-1 py-2 bg-neutral-950 text-white rounded-lg text-b-sm font-semibold hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                >
+                  {isSubmittingLead ? 'Saving...' : 'Save Lead'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function PricingTab() {
   const [localPrices, setLocalPrices] = useState<any[]>([]);
+  const [isAirtable, setIsAirtable] = useState(false);
+  const [isAirtableMode, setIsAirtableMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [newDeviceType, setNewDeviceType] = useState('iphone');
   const [newBrandSelect, setNewBrandSelect] = useState('');
   const [customBrand, setCustomBrand] = useState('');
@@ -553,30 +821,26 @@ function PricingTab() {
   }, [localPrices, newDeviceType, newBrandSelect, customBrand]);
 
   useEffect(() => {
-    const fetchAndSeedData = async () => {
+    const fetchData = async () => {
+      setIsLoading(true);
       try {
-        const querySnapshot = await getDocs(collection(db, "services"));
-        let servicesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        // Seed or migrate database if empty OR if old data exists without deviceType OR if we just added new default items
-        const needsMigration = servicesData.length === 0 || servicesData.length < pricingData.length;
-        
-        if (needsMigration) {
-          console.log("Seeding or migrating pricing data to Firestore...");
-          for (const item of pricingData) {
-            await setDoc(doc(db, "services", item.id), item);
-          }
-          // Fetch again after seeding
-          const newSnapshot = await getDocs(collection(db, "services"));
-          servicesData = newSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const [servicesRes, healthRes] = await Promise.all([
+          api.get("/services"),
+          api.get("/health").catch(e => ({ data: null }))
+        ]);
+        setLocalPrices(servicesRes.data || []);
+        if (healthRes.data?.airtable?.useAirtable) {
+          // Enable all UI controls (CSV imports, deletions, adding items, direct price inputs) by forcing isAirtable to false
+          setIsAirtable(false);
+          setIsAirtableMode(true);
         }
-        
-        setLocalPrices(servicesData);
       } catch (e) {
-        console.error("Error fetching/seeding pricing:", e);
+        console.error("Error fetching pricing or health status:", e);
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchAndSeedData();
+    fetchData();
   }, []);
 
   const exportToCSV = () => {
@@ -647,6 +911,7 @@ function PricingTab() {
   };
 
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isAirtable) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -741,13 +1006,16 @@ function PricingTab() {
           };
 
           if (existingItem) {
-            toUpdate.push({
-              id: existingItem.id,
-              ...itemData,
-              estimatedTime: existingItem.estimatedTime || '30 min',
-              warrantyDays: existingItem.warrantyDays || 90,
-              inStock: existingItem.inStock !== undefined ? existingItem.inStock : true
-            });
+            if (existingItem.price !== price) {
+              toUpdate.push({
+                id: existingItem.id,
+                ...itemData,
+                estimatedTime: existingItem.estimatedTime || '30 min',
+                warrantyDays: existingItem.warrantyDays || 90,
+                inStock: existingItem.inStock !== undefined ? existingItem.inStock : true
+              });
+            }
+            existingById.delete(existingItem.id); // Prevent duplicate matches
           } else {
             toAdd.push({
               ...itemData,
@@ -758,8 +1026,22 @@ function PricingTab() {
           }
         }
 
-        const updatedIds = new Set(toUpdate.map(x => x.id));
-        const toDelete = localPrices.filter(item => !updatedIds.has(item.id));
+        // Build list of items to delete (items currently in localPrices but not matched by brand/model/service combination in CSV)
+        const parsedCompositeKeys = new Set(
+          [...toUpdate, ...toAdd].map(item => `${item.brand.toLowerCase()}|${item.deviceModel.toLowerCase()}|${item.service.toLowerCase()}`)
+        );
+        // Also keep items that matched but didn't have their price updated
+        localPrices.forEach(item => {
+          const key = `${item.brand.toLowerCase()}|${item.deviceModel.toLowerCase()}|${item.service.toLowerCase()}`;
+          if (seenInCSVKeys.has(key)) {
+            parsedCompositeKeys.add(key);
+          }
+        });
+
+        const toDelete = localPrices.filter(item => {
+          const key = `${item.brand.toLowerCase()}|${item.deviceModel.toLowerCase()}|${item.service.toLowerCase()}`;
+          return !parsedCompositeKeys.has(key);
+        });
 
         setImportPreview({
           toUpdate,
@@ -775,46 +1057,32 @@ function PricingTab() {
     e.target.value = '';
   };
 
-  const executeImport = async () => {
+  const handleImport = async () => {
     if (!importPreview) return;
     setIsImporting(true);
 
     try {
-      let batch = writeBatch(db);
-      let opCount = 0;
-
-      const commitBatchIfNeeded = async () => {
-        opCount++;
-        if (opCount >= 400) {
-          await batch.commit();
-          batch = writeBatch(db);
-          opCount = 0;
+      if (isAirtableMode) {
+        // ONLY perform price updates in Airtable mode (CRUD additions/deletions bypassed)
+        for (const item of importPreview.toUpdate) {
+          await api.put(`/services/${item.id}`, { price: item.price });
         }
-      };
+      } else {
+        for (const item of importPreview.toDelete) {
+          await api.delete(`/services/${item.id}`);
+        }
 
-      for (const item of importPreview.toDelete) {
-        batch.delete(doc(db, "services", item.id));
-        await commitBatchIfNeeded();
+        for (const item of importPreview.toUpdate) {
+          await api.put(`/services/${item.id}`, { price: item.price });
+        }
+
+        for (const item of importPreview.toAdd) {
+          await api.post(`/services`, item);
+        }
       }
 
-      for (const item of importPreview.toUpdate) {
-        batch.set(doc(db, "services", item.id), item);
-        await commitBatchIfNeeded();
-      }
-
-      for (const item of importPreview.toAdd) {
-        const newDocRef = doc(collection(db, "services"));
-        batch.set(newDocRef, item);
-        await commitBatchIfNeeded();
-      }
-
-      if (opCount > 0) {
-        await batch.commit();
-      }
-
-      const querySnapshot = await getDocs(collection(db, "services"));
-      const servicesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLocalPrices(servicesData);
+      const response = await api.get("/services");
+      setLocalPrices(response.data);
       
       alert("Pricing catalog imported successfully!");
       setImportPreview(null);
@@ -827,7 +1095,7 @@ function PricingTab() {
 
   const handlePriceChange = async (id: string, price: number) => {
     try {
-      await updateDoc(doc(db, "services", id), { price });
+      await api.put(`/services/${id}`, { price });
       setLocalPrices(localPrices.map(p => p.id === id ? { ...p, price } : p));
     } catch (e) {
       alert('Error updating price');
@@ -836,6 +1104,7 @@ function PricingTab() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAirtableMode) return;
     
     if (newBrandSelect === 'ADD_NEW') {
       const existingBrand = availableBrands.find(b => b.toLowerCase() === customBrand.toLowerCase().trim());
@@ -859,14 +1128,15 @@ function PricingTab() {
     if (!finalDevice || !newService || !newPrice || !finalBrand) return;
     setIsAdding(true);
     try {
-      const docRef = await addDoc(collection(db, "services"), {
+      const response = await api.post("/services", {
         deviceType: newDeviceType,
         brand: finalBrand,
         deviceModel: finalDevice,
         service: newService,
         price: Number(newPrice)
       });
-      setLocalPrices([{ id: docRef.id, deviceType: newDeviceType, brand: finalBrand, deviceModel: finalDevice, service: newService, price: Number(newPrice) }, ...localPrices]);
+      const newCreated = response.data;
+      setLocalPrices([newCreated, ...localPrices]);
       setNewPrice('');
       if (newBrandSelect === 'ADD_NEW') {
         setNewBrandSelect(finalBrand);
@@ -883,9 +1153,10 @@ function PricingTab() {
   };
 
   const handleDelete = async (id: string) => {
+    if (isAirtableMode) return;
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
-      await deleteDoc(doc(db, "services", id));
+      await api.delete(`/services/${id}`);
       setLocalPrices(localPrices.filter(p => p.id !== id));
     } catch (e) {
       alert("Error deleting item");
@@ -893,118 +1164,137 @@ function PricingTab() {
   };
 
   const handleDeleteBrand = async (brandName: string) => {
+    if (isAirtableMode) return;
     if (!window.confirm(`Are you SURE you want to delete ALL pricing entries for ${brandName}? This will instantly remove the brand from the booking flow.`)) return;
     try {
       const itemsToDelete = localPrices.filter(p => p.brand === brandName);
       for (const item of itemsToDelete) {
-        await deleteDoc(doc(db, "services", item.id));
+        await api.delete(`/services/${item.id}`);
       }
       setLocalPrices(localPrices.filter(p => p.brand !== brandName));
-      alert(`Deleted ${itemsToDelete.length} items for ${brandName}.`);
+          alert(`Deleted ${itemsToDelete.length} items for ${brandName}.`);
       if (newBrandSelect === brandName) setNewBrandSelect('');
     } catch (e) {
       alert("Error deleting brand");
     }
   };
 
-  return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-h-lg text-neutral-950">Live Price Manager</h2>
-        <div className="flex gap-3">
-          <button
-            onClick={exportToCSV}
-            className="flex items-center gap-2 px-4 py-2 border border-neutral-300 rounded-lg text-b-sm font-semibold hover:bg-neutral-50 transition-colors"
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
-          <label className="flex items-center gap-2 px-4 py-2 bg-neutral-950 text-white rounded-lg text-b-sm font-semibold hover:bg-neutral-800 transition-colors cursor-pointer">
-            <Plus className="w-4 h-4" /> Import CSV
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleCSVUpload}
-              className="hidden"
-            />
-          </label>
+    return (
+      <div>
+        {isAirtableMode && (
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 mb-6 flex items-start gap-3 text-neutral-600">
+            <span className="text-xl">ℹ️</span>
+            <div>
+              <p className="text-b-sm font-semibold text-neutral-950">Airtable Catalog Mode Active</p>
+              <p className="text-b-xs text-neutral-500 mt-0.5">
+                Brands, devices, models, and service structures are managed directly via Airtable. 
+                Direct price editing and CSV price imports are enabled. Additions and deletions from this dashboard are disabled.
+              </p>
+            </div>
+          </div>
+        )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-h-lg text-neutral-950">Live Price Manager</h2>
+          <div className="flex gap-3">
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 border border-neutral-300 rounded-lg text-b-sm font-semibold hover:bg-neutral-50 transition-colors"
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+            <label className="flex items-center gap-2 px-4 py-2 bg-neutral-950 text-white rounded-lg text-b-sm font-semibold hover:bg-neutral-800 transition-colors cursor-pointer">
+              <Plus className="w-4 h-4" /> Import CSV
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCSVUpload}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
-      </div>
 
       {/* Add New Item Form */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-5 mb-6">
-        <h3 className="text-b-sm font-semibold text-neutral-950 mb-4">Add New Item</h3>
-        <form onSubmit={handleAdd} className="flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="w-full md:w-1/4">
-              <label className="block text-b-xs font-medium text-neutral-700 mb-1">Type</label>
-              <select value={newDeviceType} onChange={(e) => setNewDeviceType(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white">
-                <option value="iphone">iPhone</option>
-                <option value="android">Android</option>
-                <option value="ipad">iPad</option>
-                <option value="macbook">MacBook</option>
-                <option value="laptop">Laptop</option>
-                <option value="watch">Apple Watch</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div className="w-full md:w-1/4">
-              <label className="block text-b-xs font-medium text-neutral-700 mb-1">Brand</label>
-              {newBrandSelect === 'ADD_NEW' ? (
-                <div className="flex gap-2">
-                  <input type="text" required placeholder="e.g. Motorola" value={customBrand} onChange={(e) => setCustomBrand(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
-                  <button type="button" onClick={() => setNewBrandSelect(availableBrands[0] || '')} className="text-neutral-500 hover:text-neutral-950 p-2">
-                    <XCircle className="w-5 h-5" />
-                  </button>
-                </div>
-              ) : (
-                <select value={newBrandSelect} onChange={(e) => setNewBrandSelect(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white" required>
-                  <option value="" disabled>Select Brand</option>
-                  {availableBrands.map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                  <option value="ADD_NEW" className="font-semibold text-neutral-950">+ Add New Brand...</option>
+      {isAirtableMode ? (
+        <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-6 mb-6 text-center text-neutral-500 text-b-sm font-medium">
+          ℹ️ Adding and deleting devices, brands, and models is managed directly inside your Airtable Catalog Base. Prices can be edited directly in the catalog below.
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-neutral-200 p-5 mb-6">
+          <h3 className="text-b-sm font-semibold text-neutral-950 mb-4">Add New Item</h3>
+          <form onSubmit={handleAdd} className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="w-full md:w-1/4">
+                <label className="block text-b-xs font-medium text-neutral-700 mb-1">Type</label>
+                <select value={newDeviceType} onChange={(e) => setNewDeviceType(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white">
+                  <option value="iphone">iPhone</option>
+                  <option value="android">Android</option>
+                  <option value="ipad">iPad</option>
+                  <option value="macbook">MacBook</option>
+                  <option value="laptop">Laptop</option>
+                  <option value="watch">Apple Watch</option>
+                  <option value="other">Other</option>
                 </select>
-              )}
+              </div>
+              <div className="w-full md:w-1/4">
+                <label className="block text-b-xs font-medium text-neutral-700 mb-1">Brand</label>
+                {newBrandSelect === 'ADD_NEW' ? (
+                  <div className="flex gap-2">
+                    <input type="text" required placeholder="e.g. Motorola" value={customBrand} onChange={(e) => setCustomBrand(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
+                    <button type="button" onClick={() => setNewBrandSelect(availableBrands[0] || '')} className="text-neutral-500 hover:text-neutral-950 p-2">
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <select value={newBrandSelect} onChange={(e) => setNewBrandSelect(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white" required>
+                    <option value="" disabled>Select Brand</option>
+                    {availableBrands.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                    <option value="ADD_NEW" className="font-semibold text-neutral-950">+ Add New Brand...</option>
+                  </select>
+                )}
+              </div>
+              <div className="flex-1 w-full">
+                <label className="block text-b-xs font-medium text-neutral-700 mb-1">Device Model</label>
+                {newDeviceSelect === 'ADD_NEW' ? (
+                  <div className="flex gap-2">
+                    <input type="text" required placeholder="e.g. Galaxy S24 Ultra" value={customDevice} onChange={(e) => setCustomDevice(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
+                    <button type="button" onClick={() => setNewDeviceSelect(availableModels[0] || '')} className="text-neutral-500 hover:text-neutral-950 p-2">
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <select value={newDeviceSelect} onChange={(e) => setNewDeviceSelect(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white" required>
+                    <option value="" disabled>Select Model</option>
+                    {availableModels.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                    <option value="ADD_NEW" className="font-semibold text-neutral-950">+ Add New Model...</option>
+                  </select>
+                )}
+              </div>
             </div>
-            <div className="flex-1 w-full">
-              <label className="block text-b-xs font-medium text-neutral-700 mb-1">Device Model</label>
-              {newDeviceSelect === 'ADD_NEW' ? (
-                <div className="flex gap-2">
-                  <input type="text" required placeholder="e.g. Galaxy S24 Ultra" value={customDevice} onChange={(e) => setCustomDevice(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
-                  <button type="button" onClick={() => setNewDeviceSelect(availableModels[0] || '')} className="text-neutral-500 hover:text-neutral-950 p-2">
-                    <XCircle className="w-5 h-5" />
-                  </button>
-                </div>
-              ) : (
-                <select value={newDeviceSelect} onChange={(e) => setNewDeviceSelect(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white" required>
-                  <option value="" disabled>Select Model</option>
-                  {availableModels.map(m => (
-                    <option key={m} value={m}>{m}</option>
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1 w-full">
+                <label className="block text-b-xs font-medium text-neutral-700 mb-1">Service / Part</label>
+                <select required value={newService} onChange={(e) => setNewService(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white">
+                  {availableServices.map(s => (
+                    <option key={s.id} value={s.title}>{s.title}</option>
                   ))}
-                  <option value="ADD_NEW" className="font-semibold text-neutral-950">+ Add New Model...</option>
                 </select>
-              )}
+              </div>
+              <div className="w-full md:w-1/4">
+                <label className="block text-b-xs font-medium text-neutral-700 mb-1">Price (₹)</label>
+                <input type="number" required placeholder="0" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
+              </div>
+              <button type="submit" disabled={isAdding} className="w-full md:w-auto px-6 py-2 bg-neutral-950 text-white rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" /> Add Item
+              </button>
             </div>
-          </div>
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1 w-full">
-              <label className="block text-b-xs font-medium text-neutral-700 mb-1">Service / Part</label>
-              <select required value={newService} onChange={(e) => setNewService(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white">
-                {availableServices.map(s => (
-                  <option key={s.id} value={s.title}>{s.title}</option>
-                ))}
-              </select>
-            </div>
-            <div className="w-full md:w-1/4">
-              <label className="block text-b-xs font-medium text-neutral-700 mb-1">Price (₹)</label>
-              <input type="number" required placeholder="0" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900" />
-            </div>
-            <button type="submit" disabled={isAdding} className="w-full md:w-auto px-6 py-2 bg-neutral-950 text-white rounded-lg text-b-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-              <Plus className="w-4 h-4" /> Add Item
-            </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
         <table className="w-full">
@@ -1017,8 +1307,10 @@ function PricingTab() {
             </tr>
           </thead>
           <tbody>
-            {localPrices.length === 0 ? (
+            {isLoading ? (
               <tr><td colSpan={4} className="text-center p-4">Loading services...</td></tr>
+            ) : localPrices.length === 0 ? (
+              <tr><td colSpan={4} className="text-center p-4 text-neutral-500">No services found in Airtable catalog. Please populate pricing columns in your base.</td></tr>
             ) : (
               localPrices.map((p) => (
                 <tr key={p.id} className="border-b border-neutral-50">
@@ -1032,9 +1324,11 @@ function PricingTab() {
                     />
                   </td>
                   <td className="py-3 px-4 text-right">
-                    <button onClick={() => handleDelete(p.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete Item">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!isAirtableMode && (
+                      <button onClick={() => handleDelete(p.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete Item">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -1046,19 +1340,23 @@ function PricingTab() {
       {/* Manage Brands Section */}
       <div className="mt-8 bg-white rounded-xl border border-neutral-200 p-5">
         <h3 className="text-b-sm font-semibold text-neutral-950 mb-4">Manage Brands</h3>
-        <p className="text-b-xs text-neutral-500 mb-4">Deleting a brand will remove all associated devices and services.</p>
+        <p className="text-b-xs text-neutral-500 mb-4">
+          {isAirtableMode ? "Brands and models are managed directly via Airtable." : "Deleting a brand will remove all associated devices and services."}
+        </p>
         <div className="flex flex-wrap gap-3">
           {availableBrands.length === 0 && <span className="text-b-sm text-neutral-500">No brands found.</span>}
           {availableBrands.map(brand => (
             <div key={brand} className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
               <span className="text-b-sm font-medium text-neutral-950">{brand}</span>
-              <button 
-                onClick={() => handleDeleteBrand(brand)}
-                className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                title={`Delete all ${brand} items`}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {!isAirtableMode && (
+                <button 
+                  onClick={() => handleDeleteBrand(brand)}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                  title={`Delete all ${brand} items`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -1075,28 +1373,44 @@ function PricingTab() {
             </p>
             
             <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200 divide-y divide-neutral-200">
-              <div className="flex justify-between py-2">
-                <span className="text-b-xs text-neutral-600 font-semibold">Updates:</span>
-                <span className="text-b-xs text-blue-600 font-bold">{importPreview.toUpdate.length} prices updated</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-b-xs text-neutral-600 font-semibold">Additions:</span>
-                <span className="text-b-xs text-emerald-600 font-bold">+{importPreview.toAdd.length} new items</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-b-xs text-neutral-600 font-semibold">Deletions:</span>
-                <span className="text-b-xs text-red-600 font-bold">-{importPreview.toDelete.length} items removed</span>
-              </div>
+              {isAirtableMode ? (
+                <>
+                  <div className="flex justify-between py-2">
+                    <span className="text-b-xs text-neutral-600 font-semibold">Updates:</span>
+                    <span className="text-b-xs text-blue-600 font-bold">{importPreview.toUpdate.length} prices updated</span>
+                  </div>
+                  <div className="py-2 text-b-xs text-neutral-500 text-center font-medium">
+                    Note: Additions ({importPreview.toAdd.length}) and deletions ({importPreview.toDelete.length}) are ignored in Airtable Mode.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between py-2">
+                    <span className="text-b-xs text-neutral-600 font-semibold">Updates:</span>
+                    <span className="text-b-xs text-blue-600 font-bold">{importPreview.toUpdate.length} prices updated</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-b-xs text-neutral-600 font-semibold">Additions:</span>
+                    <span className="text-b-xs text-emerald-600 font-bold">+{importPreview.toAdd.length} new items</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-b-xs text-neutral-600 font-semibold">Deletions:</span>
+                    <span className="text-b-xs text-red-600 font-bold">-{importPreview.toDelete.length} items removed</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <p className="text-b-xs text-neutral-500 font-medium">
-              Warning: Deletions will permanently remove items from the live database.
+              {isAirtableMode 
+                ? "Confirming will apply updated prices to Airtable." 
+                : "Warning: Deletions will permanently remove items from the live database."}
             </p>
 
             <div className="flex gap-3">
               <button
                 disabled={isImporting}
-                onClick={executeImport}
+                onClick={handleImport}
                 className="flex-1 py-2 bg-neutral-950 text-white rounded-lg text-b-sm font-semibold hover:bg-neutral-800 disabled:opacity-50 transition-colors flex items-center justify-center"
               >
                 {isImporting ? "Applying Changes..." : "Confirm & Import"}
@@ -1136,9 +1450,9 @@ function CustomersTab() {
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "users"));
-        const data = querySnapshot.docs.map(doc => doc.data());
-        data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const response = await api.get("/auth/admin/users");
+        const data = response.data;
+        data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setCustomers(data);
       } catch (e) {
         console.error("Error fetching customers:", e);
@@ -1182,28 +1496,30 @@ function CustomersTab() {
 
 function SparePartsTab() {
   const [orders, setOrders] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
-  const fetchOrders = async () => {
+  const fetchOrdersAndProducts = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "tickets"));
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      const spareOrders = data.filter(d => d.cart && d.cart.length > 0 && d.deviceType === 'unknown');
-      spareOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setOrders(spareOrders);
+      const [ordersRes, productsRes] = await Promise.all([
+        api.get("/shop/admin/orders"),
+        api.get("/shop/products").catch(() => ({ data: [] }))
+      ]);
+      setOrders(ordersRes.data || []);
+      setProducts(productsRes.data || []);
     } catch (e) {
       console.error("Error fetching spare parts orders:", e);
     }
   };
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrdersAndProducts();
   }, []);
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, "tickets", id), { status: newStatus });
-      fetchOrders();
+      await api.put(`/shop/admin/orders/${id}/status`, { status: newStatus });
+      fetchOrdersAndProducts();
       if (selectedOrder && selectedOrder.id === id) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
       }
@@ -1219,7 +1535,7 @@ function SparePartsTab() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-neutral-200 bg-neutral-50/50">
-              <th className="text-left py-3 px-4 text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Ticket ID</th>
+              <th className="text-left py-3 px-4 text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Order ID</th>
               <th className="text-left py-3 px-4 text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Customer</th>
               <th className="text-left py-3 px-4 text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Mode</th>
               <th className="text-left py-3 px-4 text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Status</th>
@@ -1231,7 +1547,7 @@ function SparePartsTab() {
             ) : (
               orders.map((o) => (
                 <tr key={o.id} onClick={() => setSelectedOrder(o)} className="border-b border-neutral-50 align-top hover:bg-neutral-50 cursor-pointer">
-                  <td className="py-3 px-4 text-b-xs font-mono text-neutral-600">{o.ticketId}</td>
+                  <td className="py-3 px-4 text-b-xs font-mono text-neutral-600">{o.orderId}</td>
                   <td className="py-3 px-4">
                     <p className="text-b-sm font-semibold text-neutral-950">{o.customerName}</p>
                     <p className="text-b-xs text-neutral-500">{o.customerEmail}</p>
@@ -1262,8 +1578,8 @@ function SparePartsTab() {
             </div>
             <div className="p-6 space-y-6">
               <div>
-                <p className="text-b-xs text-neutral-500 mb-1">Ticket ID</p>
-                <p className="text-b-sm font-mono text-neutral-950">{selectedOrder.ticketId}</p>
+                <p className="text-b-xs text-neutral-500 mb-1">Order ID</p>
+                <p className="text-b-sm font-mono text-neutral-950">{selectedOrder.orderId}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1279,22 +1595,28 @@ function SparePartsTab() {
                     className="w-full text-b-xs border rounded p-1"
                   >
                     <option value="PENDING">PENDING</option>
-                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="PROCESSING">PROCESSING</option>
+                    <option value="SHIPPED">SHIPPED</option>
                     <option value="DELIVERED">DELIVERED</option>
+                    <option value="CANCELLED">CANCELLED</option>
                   </select>
                 </div>
               </div>
               <div>
                 <p className="text-b-xs text-neutral-500 mb-1">Parts Requested</p>
                 <ul className="list-disc list-inside text-b-sm text-neutral-950">
-                  {selectedOrder.cart.map((item: any, idx: number) => (
-                    <li key={idx}>{item.name} <span className="text-neutral-500">(x{item.quantity})</span></li>
-                  ))}
+                  {selectedOrder.items && selectedOrder.items.map((item: any, idx: number) => {
+                    const prod = products.find(p => p.id === item.productId || p._id === item.productId);
+                    const name = prod ? prod.name : `Product (${item.productId})`;
+                    return (
+                      <li key={idx}>{name} <span className="text-neutral-500">(x{item.quantity})</span></li>
+                    );
+                  })}
                 </ul>
               </div>
               <div>
-                <p className="text-b-xs text-neutral-500 mb-1">Estimated Cost</p>
-                <p className="text-b-sm font-semibold text-neutral-950">₹{selectedOrder.estimatedCost}</p>
+                <p className="text-b-xs text-neutral-500 mb-1">Total Cost</p>
+                <p className="text-b-sm font-semibold text-neutral-950">₹{selectedOrder.totalAmount}</p>
               </div>
             </div>
           </div>

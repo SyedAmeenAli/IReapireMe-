@@ -1,12 +1,76 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useParams } from 'react-router';
 import { Search, ShoppingCart, Star, Filter, ArrowLeft, Check, X, ChevronRight } from 'lucide-react';
-import { products, getProductBySlug, getProductsByCategory } from '@/data/products';
 import { useStore } from '@/store/useStore';
+import api from '@/lib/api';
 
 export default function Shop() {
   const { slug } = useParams<{ slug?: string }>();
-  const product = slug ? getProductBySlug(slug) : null;
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function fetchProducts() {
+      try {
+        const response = await api.get('/shop/products');
+        if (active) {
+          const mapped = (response.data || []).map((p: any) => ({
+            id: p.id || p._id,
+            slug: p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''),
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            originalPrice: p.originalPrice,
+            category: p.category,
+            subcategory: p.subcategory || '',
+            brand: p.brand || '',
+            compatibleModels: p.compatibleModels || [],
+            quality: p.quality || 'oem',
+            image: p.imageUrl || p.image || '/images/service-screen.jpg',
+            inStock: p.inStock ?? (p.stockQuantity > 0),
+            stockCount: p.stockQuantity ?? p.stockCount ?? 0,
+            rating: p.rating ?? 5.0,
+            reviewCount: p.reviewCount ?? 0,
+            features: p.features || [],
+          }));
+          setProducts(mapped);
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch spares products:', err);
+        if (active) {
+          setError('Failed to load spare parts. Please try again.');
+          setLoading(false);
+        }
+      }
+    }
+    fetchProducts();
+    return () => { active = false; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="pt-24 pb-20 text-center min-h-[60vh] flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-4 border-neutral-200 border-t-neutral-900 rounded-full animate-spin mb-4"></div>
+        <p className="text-b-sm text-neutral-500">Loading spare parts catalog...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="pt-24 pb-20 text-center min-h-[60vh] flex flex-col items-center justify-center">
+        <p className="text-b-sm text-red-500 mb-4">{error}</p>
+        <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-neutral-950 text-white rounded-lg text-b-sm hover:bg-neutral-800 transition-colors font-medium">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const product = slug ? products.find(p => p.slug === slug) : null;
 
   if (slug && product) return <ProductDetail product={product} />;
   if (slug && !product) {
@@ -18,10 +82,10 @@ export default function Shop() {
     );
   }
 
-  return <ShopGrid />;
+  return <ShopGrid products={products} />;
 }
 
-function ShopGrid() {
+function ShopGrid({ products }: { products: any[] }) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [quality, setQuality] = useState('all');
@@ -170,7 +234,7 @@ function ShopGrid() {
   );
 }
 
-function ProductDetail({ product }: { product: NonNullable<ReturnType<typeof getProductBySlug>> }) {
+function ProductDetail({ product }: { product: any }) {
   const { addToCart, setCartOpen, isLoggedIn, setLoginModalOpen } = useStore();
 
   const handleAddToCart = () => {
@@ -232,7 +296,7 @@ function ProductDetail({ product }: { product: NonNullable<ReturnType<typeof get
             <div className="mb-6">
               <p className="text-b-xs font-medium text-neutral-700 mb-2">Features</p>
               <ul className="space-y-1.5">
-                {product.features.map((f) => (
+                {product.features.map((f: string) => (
                   <li key={f} className="flex items-center gap-2 text-b-sm text-neutral-600">
                     <Check className="w-3 h-3 text-green-500 shrink-0" />
                     {f}
@@ -244,7 +308,7 @@ function ProductDetail({ product }: { product: NonNullable<ReturnType<typeof get
             <div className="mb-6">
               <p className="text-b-xs font-medium text-neutral-700 mb-2">Compatible With</p>
               <div className="flex flex-wrap gap-2">
-                {product.compatibleModels.map((m) => (
+                {product.compatibleModels.map((m: string) => (
                   <span key={m} className="text-b-xs text-neutral-600 bg-neutral-100 px-2 py-1 rounded">{m}</span>
                 ))}
               </div>
