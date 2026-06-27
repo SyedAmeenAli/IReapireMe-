@@ -4,6 +4,8 @@ import { ChevronRight, ChevronLeft, Search, Check, ArrowRight, Smartphone, Table
 import api from '@/lib/api';
 import { services as staticServices } from '@/data/services';
 import { useStore } from '@/store/useStore';
+import { deviceModels } from '@/data/devices';
+import { brands as staticBrands } from '@/data/brands';
 
 type Step = 'device' | 'brand' | 'model' | 'issue' | 'quote';
 
@@ -56,14 +58,40 @@ export default function Repair() {
     fetchServices();
   }, []);
 
-  const dynamicDeviceTypes = useMemo(() => Array.from(new Set(dbServices.map(s => s.deviceType))).filter(Boolean) as string[], [dbServices]);
+  const dynamicDeviceTypes = useMemo(() => {
+    const defaultTypes = ['iphone', 'android', 'ipad', 'macbook', 'laptop'];
+    const dbTypes = Array.from(new Set(dbServices.map(s => s.deviceType))).filter(Boolean) as string[];
+    return Array.from(new Set([...defaultTypes, ...dbTypes]));
+  }, [dbServices]);
   
   const availableBrands = useMemo(() => {
-    return Array.from(new Set(dbServices.filter(s => s.deviceType === selectedDevice).map(s => s.brand))).filter(Boolean) as string[];
+    const dbBrands = Array.from(new Set(dbServices.filter(s => s.deviceType === selectedDevice).map(s => s.brand ? s.brand.trim() : ''))).filter(Boolean) as string[];
+    if (dbBrands.length > 0) return dbBrands;
+
+    const matchedStaticBrands = staticBrands
+      .filter(b => b.deviceTypes.includes(selectedDevice))
+      .map(b => b.name);
+    return matchedStaticBrands;
   }, [dbServices, selectedDevice]);
 
   const availableModels = useMemo(() => {
-    return Array.from(new Set(dbServices.filter(s => s.deviceType === selectedDevice && s.brand === selectedBrand).map(s => s.deviceModel))).filter(Boolean) as string[];
+    const dbModels = Array.from(new Set(dbServices.filter(s => s.deviceType === selectedDevice && s.brand && s.brand.trim().toLowerCase() === selectedBrand.trim().toLowerCase()).map(s => s.deviceModel))).filter(Boolean) as string[];
+    if (dbModels.length > 0) return dbModels;
+
+    const matchedStaticModels = deviceModels
+      .filter(m => m.type === selectedDevice && m.brand && m.brand.trim().toLowerCase() === selectedBrand.trim().toLowerCase())
+      .map(m => m.name);
+
+    if (matchedStaticModels.length === 0 && selectedDevice === 'laptop') {
+      if (selectedBrand.toLowerCase() === 'dell') return ['XPS 13', 'XPS 15', 'Inspiron 15', 'Latitude 5420'];
+      if (selectedBrand.toLowerCase() === 'hp') return ['Spectre x360', 'Envy 15', 'Pavilion 15', 'EliteBook 840'];
+      if (selectedBrand.toLowerCase() === 'lenovo') return ['ThinkPad X1 Carbon', 'Yoga 7i', 'IdeaPad 5'];
+      if (selectedBrand.toLowerCase() === 'asus') return ['ZenBook 14', 'ROG Zephyrus G14', 'VivoBook 15'];
+      if (selectedBrand.toLowerCase() === 'acer') return ['Aspire 5', 'Swift 3', 'Nitro 5'];
+      return ['General Laptop Model'];
+    }
+
+    return matchedStaticModels;
   }, [dbServices, selectedDevice, selectedBrand]);
 
   const filteredModels = modelSearch
@@ -75,17 +103,39 @@ export default function Repair() {
   }, [dbServices, selectedModel]);
 
   const availableServicesList = useMemo(() => {
-    return availableServicesForModel.map(dbSvc => {
-      const staticSvc = staticServices.find(s => s.title === dbSvc.service);
+    const dbModelServices = dbServices.filter(s => s.deviceModel === selectedModel);
+    if (dbModelServices.length > 0) {
+      return dbModelServices.map(dbSvc => {
+        const staticSvc = staticServices.find(s => s.title === dbSvc.service);
+        return {
+          id: dbSvc.id,
+          title: dbSvc.service,
+          timeEstimate: staticSvc?.timeEstimate || '1-2 hours',
+          warrantyPeriod: staticSvc?.warrantyPeriod || '90 days',
+          priceFrom: dbSvc.price,
+        };
+      });
+    }
+
+    const capitalizeDevice = selectedDevice === 'iphone' ? 'iPhone' : 
+                             selectedDevice === 'android' ? 'Android' : 
+                             selectedDevice === 'ipad' ? 'iPad' : 
+                             selectedDevice === 'macbook' ? 'MacBook' : 'Laptop';
+
+    const matchedStaticServices = staticServices.filter(s => 
+      s.applicableDevices.includes(capitalizeDevice) || s.applicableDevices.includes(selectedDevice)
+    );
+
+    return matchedStaticServices.map(staticSvc => {
       return {
-        id: dbSvc.id,
-        title: dbSvc.service,
-        timeEstimate: staticSvc?.timeEstimate || '1-2 hours',
-        warrantyPeriod: staticSvc?.warrantyPeriod || '90 days',
-        priceFrom: dbSvc.price,
+        id: `static:${selectedDevice}:${selectedBrand}:${selectedModel}:${staticSvc.id}`,
+        title: staticSvc.title,
+        timeEstimate: staticSvc.timeEstimate || '1-2 hours',
+        warrantyPeriod: staticSvc.warrantyPeriod || '90 days',
+        priceFrom: 0,
       };
     });
-  }, [availableServicesForModel]);
+  }, [dbServices, selectedDevice, selectedBrand, selectedModel]);
 
   const selectedService = availableServicesList.find((s) => s.id === selectedIssueId);
 
@@ -99,7 +149,7 @@ export default function Repair() {
       brand: selectedBrand,
       model: selectedModel,
       issue: selectedService?.title || '',
-      priceLabel: selectedService ? `₹${selectedService.priceFrom.toLocaleString()}` : '',
+      priceLabel: selectedService && selectedService.priceFrom > 0 ? `₹${selectedService.priceFrom.toLocaleString()}` : 'Free Diagnostics / Quote on Call',
       estimatedTime: selectedService?.timeEstimate || '',
     });
     navigate('/booking');
@@ -302,7 +352,7 @@ export default function Repair() {
                       >
                         <span className="text-b-sm font-medium text-neutral-950 mb-1">{service.title}</span>
                         <span className="text-b-xs text-neutral-500">{service.timeEstimate}</span>
-                        <span className="text-b-xs font-medium text-neutral-700 mt-1">&#8377;{service.priceFrom.toLocaleString()}</span>
+                        <span className="text-b-xs font-medium text-neutral-700 mt-1">{service.priceFrom > 0 ? `₹${service.priceFrom.toLocaleString()}` : 'Free Diagnostics / Ask for Quote'}</span>
                       </button>
                     ))}
                     {availableServicesList.length === 0 && (
@@ -327,9 +377,9 @@ export default function Repair() {
                   <div className="bg-neutral-50 rounded-xl p-5 border border-neutral-200 mb-6">
                     <div className="text-center">
                       <p className="text-3xl font-bold text-neutral-950 mb-1">
-                        &#8377;{selectedService.priceFrom.toLocaleString()}
+                        {selectedService.priceFrom > 0 ? `₹${selectedService.priceFrom.toLocaleString()}` : 'Free Diagnostics / Quote on call'}
                       </p>
-                      <p className="text-b-xs text-neutral-500 mb-4">Total Cost</p>
+                      <p className="text-b-xs text-neutral-500 mb-4">{selectedService.priceFrom > 0 ? 'Total Cost' : 'Estimate status'}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-center">

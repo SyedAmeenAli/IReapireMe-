@@ -12,6 +12,7 @@ import paymentRoutes from './routes/payment.routes';
 import deliveryRoutes from './routes/delivery.routes';
 import { getResolvedServices, getCacheHealth } from './services/serviceResolver';
 import { getPendingFailedWritesCount } from './models/airtable.repository';
+import { startSyncCron } from './services/repairshopr.sync';
 
 const app = express();
 
@@ -76,6 +77,10 @@ mongoose
     console.log('✅ Connected to MongoDB');
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      
+      // Start RepairShopr Sync Cron Job
+      startSyncCron();
+
       if (process.env.USE_AIRTABLE === 'true') {
         console.log('[Startup] Warming service catalog cache...');
         getResolvedServices()
@@ -88,5 +93,4 @@ mongoose
     console.error('❌ Failed to connect to MongoDB:', err);
     process.exit(1);
   });
-// Trigger nodemon reload 3
-
+// Trigger nodemon reload 4

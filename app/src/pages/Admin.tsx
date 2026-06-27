@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router';
-import { LayoutDashboard, List, ClipboardList, DollarSign, Settings, Search, Download, ChevronRight, BarChart3, Users, Clock, CheckCircle, XCircle, Plus, Trash2, Package } from 'lucide-react';
+import { LayoutDashboard, List, ClipboardList, DollarSign, Settings, Search, Download, ChevronRight, BarChart3, Users, Clock, CheckCircle, XCircle, Plus, Trash2, Package, X } from 'lucide-react';
 import api from '@/lib/api';
 import { pricingData } from '@/data/pricing';
 import { services as availableServices } from '@/data/services';
@@ -384,6 +384,74 @@ function LeadsTab() {
   const [search, setSearch] = useState('');
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
 
+  // Manual lead creation states
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newDeviceType, setNewDeviceType] = useState('iphone');
+  const [newBrand, setNewBrand] = useState('');
+  const [newDeviceModel, setNewDeviceModel] = useState('');
+  const [newIssue, setNewIssue] = useState('');
+  const [newCost, setNewCost] = useState('');
+  const [newServiceMode, setNewServiceMode] = useState<'walkin' | 'courier'>('walkin');
+  const [newAddress, setNewAddress] = useState('');
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+  const [leadError, setLeadError] = useState('');
+
+  const closeAddModal = () => {
+    setIsAddModalOpen(false);
+    setNewName('');
+    setNewPhone('');
+    setNewEmail('');
+    setNewDeviceType('iphone');
+    setNewBrand('');
+    setNewDeviceModel('');
+    setNewIssue('');
+    setNewCost('');
+    setNewServiceMode('walkin');
+    setNewAddress('');
+    setLeadError('');
+  };
+
+  const handleAddLeadSubmit = async (e: React.FormEvent, force: boolean = false) => {
+    if (e) e.preventDefault();
+    setLeadError('');
+    setIsSubmittingLead(true);
+
+    try {
+      await api.post('/repairs/admin/create-lead', {
+        customerName: newName,
+        customerPhone: newPhone,
+        customerEmail: newEmail,
+        deviceType: newDeviceType,
+        brand: newBrand,
+        deviceModel: newDeviceModel,
+        issueDescription: newIssue,
+        estimatedCost: newCost ? Number(newCost) : 0,
+        serviceMode: newServiceMode,
+        address: newServiceMode === 'courier' ? newAddress : undefined,
+        force
+      });
+      
+      closeAddModal();
+      fetchLeads();
+    } catch (err: any) {
+      if (err.response?.status === 409) {
+        const confirm = window.confirm(
+          `A pending lead already exists for this customer and device (ID: ${err.response.data.existingTicketId}). Do you want to create it anyway?`
+        );
+        if (confirm) {
+          await handleAddLeadSubmit(e, true);
+        }
+      } else {
+        setLeadError(err.response?.data?.message || 'Failed to create lead.');
+      }
+    } finally {
+      setIsSubmittingLead(false);
+    }
+  };
+
   const fetchLeads = async () => {
     try {
       const response = await api.get("/repairs/admin");
@@ -430,6 +498,12 @@ function LeadsTab() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-h-lg text-neutral-950">Leads</h2>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="px-4 py-2 text-b-sm bg-neutral-950 text-white font-medium rounded-lg hover:bg-neutral-800 transition-colors"
+        >
+          Add New Lead
+        </button>
       </div>
 
       <div className="relative mb-6">
@@ -462,7 +536,21 @@ function LeadsTab() {
             ) : (
               filtered.map((s) => (
                 <tr key={s.id} onClick={() => setSelectedLead(s)} className="border-b border-neutral-50 hover:bg-neutral-50 cursor-pointer">
-                  <td className="py-3 px-4 text-b-xs font-mono text-neutral-600">{s.ticketId}</td>
+                  <td className="py-3 px-4">
+                    <span className="font-mono text-neutral-600 block text-b-xs mb-1">{s.ticketId}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold tracking-wide ${
+                      s.source === 'website_booking' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                      s.source === 'admin_manual' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
+                      s.source === 'query_widget' ? 'bg-teal-50 text-teal-600 border border-teal-100' :
+                      s.source === 'repairshopr_import' || s.source === 'repairshopr_pull' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
+                      'bg-blue-50 text-blue-600 border border-blue-100'
+                    }`}>
+                      {s.source === 'website_booking' ? 'Website' :
+                       s.source === 'admin_manual' ? 'Manual' :
+                       s.source === 'query_widget' ? 'Query' :
+                       'RepairShopr'}
+                    </span>
+                  </td>
                   <td className="py-3 px-4">
                     <p className="text-b-sm text-neutral-950">{s.customerName}</p>
                     <p className="text-b-xs text-neutral-500">{s.customerPhone}</p>
@@ -546,6 +634,155 @@ function LeadsTab() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Lead Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAddModal} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-slide-in-right z-10 text-left">
+            <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
+              <h3 className="text-h-sm text-neutral-950 font-bold">Add New Lead</h3>
+              <button onClick={closeAddModal} className="p-1 hover:bg-neutral-100 rounded">
+                <X className="w-5 h-5 text-neutral-500" />
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => handleAddLeadSubmit(e)} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {leadError && (
+                <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 text-b-xs">
+                  {leadError}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Customer Name *</label>
+                  <input
+                    type="text" required value={newName} onChange={(e) => setNewName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Phone (10-digit) *</label>
+                  <input
+                    type="tel" required value={newPhone} onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Email Address *</label>
+                <input
+                  type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Device Type *</label>
+                  <select
+                    value={newDeviceType} onChange={(e) => setNewDeviceType(e.target.value)}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white"
+                  >
+                    <option value="iphone">iPhone</option>
+                    <option value="android">Android</option>
+                    <option value="ipad">iPad</option>
+                    <option value="macbook">MacBook</option>
+                    <option value="laptop">Laptop</option>
+                    <option value="watch">Watch</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Brand *</label>
+                  <input
+                    type="text" required value={newBrand} onChange={(e) => setNewBrand(e.target.value)}
+                    placeholder="Apple"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Model *</label>
+                  <input
+                    type="text" required value={newDeviceModel} onChange={(e) => setNewDeviceModel(e.target.value)}
+                    placeholder="iPhone 15"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider">Explain Issue *</label>
+                  <span className={`text-[10px] ${newIssue.length > 500 ? 'text-red-500' : 'text-neutral-400'}`}>
+                    {newIssue.length}/500
+                  </span>
+                </div>
+                <textarea
+                  required value={newIssue} onChange={(e) => setNewIssue(e.target.value.slice(0, 500))}
+                  placeholder="Describe what is wrong with the device"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Estimated Cost (₹) <span className="text-neutral-400 font-normal">(Optional)</span></label>
+                  <input
+                    type="number" value={newCost} onChange={(e) => setNewCost(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Service Mode</label>
+                  <select
+                    value={newServiceMode} onChange={(e) => setNewServiceMode(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 bg-white"
+                  >
+                    <option value="walkin">Walk-in</option>
+                    <option value="courier">Courier</option>
+                  </select>
+                </div>
+              </div>
+
+              {newServiceMode === 'courier' && (
+                <div>
+                  <label className="block text-b-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1">Address *</label>
+                  <textarea
+                    required={newServiceMode === 'courier'}
+                    value={newAddress} onChange={(e) => setNewAddress(e.target.value)}
+                    placeholder="Enter pickup/delivery address"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-b-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 resize-none"
+                  />
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-neutral-200 flex gap-3">
+                <button
+                  type="button" onClick={closeAddModal}
+                  className="flex-1 py-2 border border-neutral-300 text-neutral-700 rounded-lg text-b-sm font-medium hover:bg-neutral-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit" disabled={isSubmittingLead || newPhone.length !== 10}
+                  className="flex-1 py-2 bg-neutral-950 text-white rounded-lg text-b-sm font-semibold hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                >
+                  {isSubmittingLead ? 'Saving...' : 'Save Lead'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

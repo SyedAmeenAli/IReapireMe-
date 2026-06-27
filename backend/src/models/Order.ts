@@ -70,6 +70,85 @@ const MongooseOrderModel = mongoose.models.Order || mongoose.model<IOrder>('Orde
 const tableName = process.env.AIRTABLE_TABLE_ORDERS || 'orders';
 const airtableOrderRepo = new AirtableRepository<IOrder>(tableName);
 
+export function toAirtableOrder(data: any): any {
+  if (!data) return null;
+  const result: any = {};
+  
+  if (data.userId !== undefined) result.userId = data.userId;
+  if (data.customerName !== undefined) result.customerName = data.customerName;
+  if (data.customerEmail !== undefined) result.customerEmail = data.customerEmail;
+  if (data.customerPhone !== undefined) {
+    result.customerPhone = data.customerPhone ? Number(String(data.customerPhone).replace(/\D/g, '')) : null;
+  }
+  if (data.shippingAddress !== undefined) result.address = data.shippingAddress;
+  if (data.status !== undefined) result.status = data.status;
+  if (data.razorpayOrderId !== undefined) result.orderId = data.razorpayOrderId;
+  if (data.totalAmount !== undefined) result.totalAmount = data.totalAmount;
+  
+  if (data.items !== undefined && Array.isArray(data.items)) {
+    result.items = data.items.map((item: any) => ({
+      productId: item.productId,
+      qty: item.quantity ?? item.qty ?? 1
+    }));
+  }
+  
+  return result;
+}
+
+export function fromAirtableOrder(raw: any): any {
+  if (!raw) return null;
+  
+  const customerName = raw.customerName || '';
+  const customerEmail = raw.customerEmail || '';
+  const customerPhone = raw.customerPhone ? String(raw.customerPhone) : '';
+  const shippingAddress = raw.address || raw.shippingAddress || '';
+  const status = raw.status || 'PENDING';
+  const razorpayOrderId = raw.orderId || raw.razorpayOrderId || '';
+  const totalAmount = typeof raw.totalAmount === 'number' ? raw.totalAmount : 0;
+  
+  let items: any[] = [];
+  if (raw.items) {
+    let parsedItems = raw.items;
+    if (typeof parsedItems === 'string') {
+      try {
+        parsedItems = JSON.parse(parsedItems);
+      } catch (e) {
+        parsedItems = [];
+      }
+    }
+    if (Array.isArray(parsedItems)) {
+      items = parsedItems.map((item: any) => ({
+        productId: item.productId || item.id,
+        quantity: item.qty ?? item.quantity ?? 1,
+        price: item.price ?? 0
+      }));
+    }
+  }
+  
+  return {
+    id: raw.id || raw._id,
+    _id: raw.id || raw._id,
+    userId: raw.userId,
+    customerName,
+    customerEmail,
+    customerPhone,
+    shippingAddress,
+    items,
+    totalAmount,
+    status,
+    serviceMode: raw.serviceMode || 'walkin',
+    scheduledDate: raw.scheduledDate,
+    scheduledSlot: raw.scheduledSlot,
+    deliveryFee: typeof raw.deliveryFee === 'number' ? raw.deliveryFee : 0,
+    borzoOrderId: raw.borzoOrderId,
+    razorpayOrderId,
+    razorpayPaymentId: raw.razorpayPaymentId,
+    razorpaySignature: raw.razorpaySignature,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
 class HybridOrder {
   id?: string;
   _id?: string;
@@ -102,12 +181,13 @@ class HybridOrder {
     delete (cleanData as any).save;
 
     if (useAirtable) {
+      const airtablePayload = toAirtableOrder(cleanData);
       if (this.id && this.id.startsWith('rec')) {
-        const updated = await airtableOrderRepo.findByIdAndUpdate(this.id, cleanData);
-        Object.assign(this, updated);
+        const updated = await airtableOrderRepo.findByIdAndUpdate(this.id, airtablePayload);
+        Object.assign(this, fromAirtableOrder(updated));
       } else {
-        const created = await airtableOrderRepo.create(cleanData);
-        Object.assign(this, created);
+        const created = await airtableOrderRepo.create(airtablePayload);
+        Object.assign(this, fromAirtableOrder(created));
       }
 
       // Background dual-write
@@ -144,7 +224,7 @@ class HybridOrder {
         const newDoc = new MongooseOrderModel(cleanData);
         mongoDoc = await newDoc.save();
       }
-      Object.assign(this, mongoDoc.toObject());
+      Object.assign(this, fromAirtableOrder(mongoDoc.toObject()));
     }
     return this;
   }
@@ -153,54 +233,74 @@ class HybridOrder {
 const OrderFacade = {
   find(query: any = {}): HybridQuery<any> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
-    if (useAirtable) {
+    if (useAirtable && !query.userId) {
       if (query._id) {
-        return new HybridQuery(airtableOrderRepo.findById(query._id).then(r => r ? [r] : []));
+        return new HybridQuery(airtableOrderRepo.findById(query._id).then(r => r ? [fromAirtableOrder(r)] : []));
       }
-      return new HybridQuery(airtableOrderRepo.find(query));
+      const airtableQuery = { ...query };
+      if (query.razorpayOrderId) {
+        airtableQuery.orderId = query.razorpayOrderId;
+        delete airtableQuery.razorpayOrderId;
+      }
+      return new HybridQuery(airtableOrderRepo.find(airtableQuery).then(records => records.map(fromAirtableOrder)));
     } else {
-      return new HybridQuery(MongooseOrderModel.find(query).exec(), MongooseOrderModel.find(query));
+      const promise = MongooseOrderModel.find(query).exec().then(records => records.map(r => fromAirtableOrder(r.toObject())));
+      return new HybridQuery(promise, MongooseOrderModel.find(query), fromAirtableOrder);
     }
   },
 
   findOne(query: any = {}): HybridSingleQuery<any> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
-    if (useAirtable) {
+    if (useAirtable && !query.userId) {
       if (query._id) {
-        return new HybridSingleQuery(airtableOrderRepo.findById(query._id));
+        return new HybridSingleQuery(airtableOrderRepo.findById(query._id).then(fromAirtableOrder));
       }
-      return new HybridSingleQuery(airtableOrderRepo.findOne(query));
+      const airtableQuery = { ...query };
+      if (query.razorpayOrderId) {
+        airtableQuery.orderId = query.razorpayOrderId;
+        delete airtableQuery.razorpayOrderId;
+      }
+      return new HybridSingleQuery(airtableOrderRepo.findOne(airtableQuery).then(fromAirtableOrder));
     } else {
-      return new HybridSingleQuery(MongooseOrderModel.findOne(query).exec(), MongooseOrderModel.findOne(query));
+      const promise = MongooseOrderModel.findOne(query).exec().then(doc => doc ? fromAirtableOrder(doc.toObject()) : null);
+      return new HybridSingleQuery(promise, MongooseOrderModel.findOne(query), fromAirtableOrder);
     }
   },
 
   findById(id: string): HybridSingleQuery<any> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
     if (useAirtable) {
-      return new HybridSingleQuery(airtableOrderRepo.findById(id));
+      return new HybridSingleQuery(airtableOrderRepo.findById(id).then(fromAirtableOrder));
     } else {
-      return new HybridSingleQuery(MongooseOrderModel.findById(id).exec(), MongooseOrderModel.findById(id));
+      const promise = MongooseOrderModel.findById(id).exec().then(doc => doc ? fromAirtableOrder(doc.toObject()) : null);
+      return new HybridSingleQuery(promise, MongooseOrderModel.findById(id), fromAirtableOrder);
     }
   },
 
   findByIdAndUpdate(id: string, update: any, options: any = {}): Promise<any | null> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
     if (useAirtable) {
+      const airtableUpdate = toAirtableOrder(update);
       MongooseOrderModel.findByIdAndUpdate(id, update).exec().catch(() => {});
-      return airtableOrderRepo.findByIdAndUpdate(id, update);
+      return airtableOrderRepo.findByIdAndUpdate(id, airtableUpdate).then(fromAirtableOrder);
     } else {
-      return MongooseOrderModel.findByIdAndUpdate(id, update, { new: true }).exec().then(doc => doc ? doc.toObject() : null);
+      return MongooseOrderModel.findByIdAndUpdate(id, update, { new: true }).exec().then(doc => doc ? fromAirtableOrder(doc.toObject()) : null);
     }
   },
 
   findOneAndUpdate(query: any, update: any, options: any = {}): Promise<any | null> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
+    const airtableQuery = { ...query };
+    if (query.razorpayOrderId) {
+      airtableQuery.orderId = query.razorpayOrderId;
+      delete airtableQuery.razorpayOrderId;
+    }
     if (useAirtable) {
+      const airtableUpdate = toAirtableOrder(update);
       MongooseOrderModel.findOneAndUpdate(query, update).exec().catch(() => {});
-      return airtableOrderRepo.findOneAndUpdate(query, update);
+      return airtableOrderRepo.findOneAndUpdate(airtableQuery, airtableUpdate).then(fromAirtableOrder);
     } else {
-      return MongooseOrderModel.findOneAndUpdate(query, update, { new: true }).exec().then(doc => doc ? doc.toObject() : null);
+      return MongooseOrderModel.findOneAndUpdate(query, update, { new: true }).exec().then(doc => doc ? fromAirtableOrder(doc.toObject()) : null);
     }
   }
 };

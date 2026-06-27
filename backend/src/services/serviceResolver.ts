@@ -31,6 +31,8 @@ const DEFAULT_TABLE_KEYS = [
   'iphone-service',
   'macbook-services',
   'android-services',
+  'ipad-services',
+  'laptop-services',
   'display',
   'battery',
   'charging-port',
@@ -43,10 +45,19 @@ const DEFAULT_TABLE_KEYS = [
   'housing',
   'proximity-sensor',
   'macbook-display',
+  'macbook-battery',
+  'macbook-keyboard',
   'android-display',
   'android-battery',
   'android-charging-port',
-  'android-back-glass'
+  'android-back-glass',
+  'ipad-display',
+  'ipad-battery',
+  'ipad-charging-port',
+  'laptop-display',
+  'laptop-battery',
+  'laptop-keyboard',
+  'laptop-charging-port'
 ];
 
 /**
@@ -60,7 +71,13 @@ export const tableKeys: string[] = process.env.AIRTABLE_TABLE_KEYS
   ? process.env.AIRTABLE_TABLE_KEYS.split(',').map(s => s.trim())
   : DEFAULT_TABLE_KEYS;
 
-const DEFAULT_DEVICE_SERVICE_TABLES = ['iphone-service', 'macbook-services', 'android-services'];
+const DEFAULT_DEVICE_SERVICE_TABLES = [
+  'iphone-service',
+  'macbook-services',
+  'android-services',
+  'ipad-services',
+  'laptop-services'
+];
 const DEVICE_SERVICE_TABLES = process.env.AIRTABLE_DEVICE_SERVICE_TABLES
   ? process.env.AIRTABLE_DEVICE_SERVICE_TABLES.split(',').map(s => s.trim())
   : DEFAULT_DEVICE_SERVICE_TABLES;
@@ -99,10 +116,17 @@ const SERVICE_NAME_OVERRIDES: Record<string, string> = {
   "iphone display": "Screen Replacement",
   "macbook display": "Screen Replacement",
   "android display": "Screen Replacement",
+  "ipad display": "Screen Replacement",
+  "laptop display": "Screen Replacement",
   "iphone battery": "Battery Replacement",
   "android battery": "Battery Replacement",
+  "macbook battery": "Battery Replacement",
+  "ipad battery": "Battery Replacement",
+  "laptop battery": "Battery Replacement",
   "iphone charging port": "Charging Port Repair",
   "android charging port": "Charging Port Repair",
+  "ipad charging port": "Charging Port Repair",
+  "laptop charging port": "Charging Port Repair",
   "iphone back glass": "Back Glass Replacement",
   "android back glass": "Back Glass Replacement",
   "iphone earspeaker": "Earspeaker Replacement",
@@ -112,7 +136,9 @@ const SERVICE_NAME_OVERRIDES: Record<string, string> = {
   "iphone camera glass": "Camera Glass Replacement",
   "iphone housing / side frame": "Housing / Side Frame Repair",
   "iphone proximity flex": "Proximity Sensor Repair",
-  "iphone proximity sensor flex": "Proximity Sensor Repair"
+  "iphone proximity sensor flex": "Proximity Sensor Repair",
+  "macbook keyboard": "Keyboard Replacement",
+  "laptop keyboard": "Keyboard Replacement"
 };
 
 // Health stats exporter
@@ -204,7 +230,7 @@ async function fetchTableSafe(tableName: string): Promise<Map<string, any>> {
     return await enqueueRequest(async () => {
       const base = getCatalogBase(false);
       if (!base) throw new Error('Airtable Catalog Base is not initialized');
-      
+
       const records = await executeWithRetryAndTimeout(async () => {
         return await base(tableName).select().all();
       });
@@ -322,13 +348,15 @@ async function fetchAndResolveCatalog(): Promise<CachedCatalog> {
 
       let brand = rowFields['Brand'] || rowFields['brand'];
       if (!brand) {
-        if (inferredDeviceType === 'iphone' || inferredDeviceType === 'macbook') {
+        if (inferredDeviceType === 'iphone' || inferredDeviceType === 'macbook' || inferredDeviceType === 'ipad') {
           brand = 'Apple';
         } else {
           logger.error('Android/other service record missing required Brand field. Skipping row.', { deviceModel, tableName });
           continue;
         }
       }
+
+      let entriesCompiled = 0;
 
       // Loop through column fields dynamically
       for (const [key, value] of Object.entries(rowFields)) {
@@ -392,6 +420,8 @@ async function fetchAndResolveCatalog(): Promise<CachedCatalog> {
                 inStock: true
               });
 
+              entriesCompiled++;
+
               metadata.set(serviceId, {
                 tableName: foundPart.tableName,
                 recordId: foundPart.id,
@@ -400,6 +430,21 @@ async function fetchAndResolveCatalog(): Promise<CachedCatalog> {
             }
           }
         }
+      }
+
+      if (entriesCompiled === 0) {
+        const serviceId = `default:${tableName}:${rowId}`;
+        data.push({
+          id: serviceId,
+          deviceType: inferredDeviceType,
+          brand,
+          deviceModel,
+          service: 'Diagnostics & General Repair',
+          price: 0,
+          estimatedTime: inferredDeviceType.includes('macbook') || inferredDeviceType.includes('laptop') ? '1-2 days' : '45 min',
+          warrantyDays: 90,
+          inStock: true
+        });
       }
     }
   }
@@ -423,7 +468,7 @@ export async function getResolvedServices(): Promise<ResolvedPricingEntry[]> {
       catalogCache = await fetchAndResolveCatalog();
     } catch (err: any) {
       logger.error('Failed to resolve catalog on boot. Querying MongoDB snapshot fallback...', { error: err.message });
-      
+
       const MongooseServicePricing = mongoose.models.ServicePricing;
       if (MongooseServicePricing) {
         try {

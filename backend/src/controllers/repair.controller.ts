@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import Razorpay from 'razorpay';
 import borzoService from '../services/borzo.service';
+import { repairShoprService } from '../services/repairshopr.service';
+import logger from '../utils/logger';
 
 let razorpayInstance: Razorpay | null = null;
 
@@ -26,13 +28,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_replace_me_in_pr
 
 export const createTicket = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { 
-      customerName, customerPhone, customerEmail, 
+    const {
+      customerName, customerPhone, customerEmail,
       deviceType, brand, deviceModel, issueDescription, estimatedCost,
-      serviceMode = 'walkin', expectedDeliveryFee, expiresAt, quoteToken, 
-      dropLat, dropLng, address, scheduledDate, scheduledSlot 
+      serviceMode = 'walkin', expectedDeliveryFee, expiresAt, quoteToken,
+      dropLat, dropLng, address, scheduledDate, scheduledSlot
     } = req.body;
-    
+
     // Optional auth extraction
     let userId;
     const token = req.header('Authorization')?.split(' ')[1];
@@ -46,7 +48,7 @@ export const createTicket = async (req: Request, res: Response): Promise<void> =
     }
 
     let finalDeliveryFee = 0;
-    
+
     if (serviceMode === 'courier') {
       if (expectedDeliveryFee === undefined || !expiresAt || !quoteToken || !dropLat || !dropLng) {
         res.status(400).json({ message: 'Missing delivery quote validation fields' });
@@ -120,6 +122,11 @@ export const createTicket = async (req: Request, res: Response): Promise<void> =
     });
 
     await newTicket.save();
+
+    // Trigger RepairShopr sync in background
+    syncTicketToRepairShopr(newTicket).catch(err => {
+      logger.error(`[RepairShopr] Background sync trigger failed: ${err.message}`);
+    });
 
     res.status(201).json({
       success: true,
@@ -224,6 +231,15 @@ export const updateTicketStatus = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
+    // Outbound status sync disabled per user instructions
+    /*
+    if (ticket.repairshoprTicketId) {
+      repairShoprService.updateTicketStatus(ticket.repairshoprTicketId, status).catch(err => {
+        logger.error(`[RepairShopr] Status update sync failed for ticket ${ticket.ticketId}: ${err.message}`);
+      });
+    }
+    */
+
     res.json(ticket);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
@@ -244,3 +260,189 @@ export const deleteTicket = async (req: AuthRequest, res: Response): Promise<voi
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+export const createQueryLead = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { customerName, customerPhone, preferredContactMethod, explainYourIssue } = req.body;
+
+    if (!customerPhone || !preferredContactMethod || !explainYourIssue) {
+      res.status(400).json({ message: 'Missing required fields: customerPhone, preferredContactMethod, and explainYourIssue' });
+      return;
+    }
+
+    // Phone validation
+    const phoneRegex = /^[6789]\d{9}$/;
+    if (!phoneRegex.test(customerPhone)) {
+      res.status(400).json({ message: 'Invalid phone number. Must be a valid 10-digit mobile number.' });
+      return;
+    }
+
+    // Issue description length validation
+    if (explainYourIssue.length > 500) {
+      res.status(400).json({ message: 'Issue description cannot exceed 500 characters.' });
+      return;
+    }
+
+    // Duplicate check within last 24 hours
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const existing = await RepairTicket.findOne({
+      customerPhone,
+      status: RepairStatus.PENDING,
+      createdAt: { $gte: oneDayAgo }
+    });
+
+    if (existing) {
+      res.status(409).json({ message: 'You already have a pending query. We will contact you soon.' });
+      return;
+    }
+
+    const ticketId = 'TKT-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+
+    const newTicket = new RepairTicket({
+      ticketId,
+      customerName: customerName || 'Query Customer',
+      customerPhone,
+      customerEmail: 'no-email@provided.com',
+      deviceType: 'Unknown',
+      brand: 'Unknown',
+      deviceModel: 'Unknown',
+      issueDescription: `[Preferred Contact: ${preferredContactMethod}] ${explainYourIssue}`,
+      status: RepairStatus.PENDING,
+      estimatedCost: 0,
+      serviceMode: 'walkin',
+      source: 'query_widget',
+      deliveryFee: 0
+    });
+
+    await newTicket.save();
+
+    // Sync to RepairShopr in background
+    syncTicketToRepairShopr(newTicket).catch(err => {
+      logger.error(`[RepairShopr] Background sync trigger failed: ${err.message}`);
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Thanks! We'll contact you shortly.",
+      ticketId: newTicket.ticketId
+    });
+  } catch (error) {
+    logger.error(`Create Query Lead Error: ${error}`);
+    res.status(500).json({ message: 'Server error during query lead creation' });
+  }
+};
+
+export const createLead = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      customerName, customerPhone, customerEmail,
+      deviceType, brand, deviceModel, issueDescription,
+      estimatedCost = 0, serviceMode = 'walkin', address,
+      scheduledDate, scheduledSlot, force = false
+    } = req.body;
+
+    // Validate required fields
+    if (!customerName || !customerPhone || !customerEmail || !deviceType || !brand || !deviceModel || !issueDescription) {
+      res.status(400).json({ message: 'Missing required fields' });
+      return;
+    }
+
+    // Phone validation
+    const phoneRegex = /^[6789]\d{9}$/;
+    const cleanPhone = customerPhone.replace(/\D/g, '').slice(-10);
+    if (!phoneRegex.test(cleanPhone)) {
+      res.status(400).json({ message: 'Invalid phone number. Must be a valid 10-digit mobile number.' });
+      return;
+    }
+
+    // Issue description length validation
+    if (issueDescription.length > 500) {
+      res.status(400).json({ message: 'Issue description cannot exceed 500 characters.' });
+      return;
+    }
+
+    // Soft duplicate guard
+    const existing = await RepairTicket.findOne({
+      customerPhone: cleanPhone,
+      deviceModel,
+      status: RepairStatus.PENDING
+    });
+
+    if (existing && !force) {
+      res.status(409).json({
+        message: 'A pending lead already exists for this customer and device.',
+        existingTicketId: existing.ticketId
+      });
+      return;
+    }
+
+    const ticketId = 'TKT-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+
+    const newTicket = new RepairTicket({
+      ticketId,
+      userId: req.user?.id,
+      customerName,
+      customerPhone: cleanPhone,
+      customerEmail,
+      deviceType,
+      brand,
+      deviceModel,
+      issueDescription,
+      status: RepairStatus.PENDING,
+      estimatedCost,
+      serviceMode,
+      address,
+      scheduledDate,
+      scheduledSlot,
+      source: 'admin_manual',
+      forceCreated: !!(existing && force),
+      createdBy: req.user?.id
+    });
+
+    await newTicket.save();
+
+    // Trigger RepairShopr sync in background
+    syncTicketToRepairShopr(newTicket).catch(err => {
+      logger.error(`[RepairShopr] Background sync trigger failed: ${err.message}`);
+    });
+
+    res.status(201).json(newTicket);
+  } catch (error) {
+    logger.error(`Create Admin Lead Error: ${error}`);
+    res.status(500).json({ message: 'Server error during manual lead creation' });
+  }
+};
+
+async function syncTicketToRepairShopr(ticket: any): Promise<void> {
+  // Only sync query widget leads to RepairShopr. Standard website bookings and manual admin leads do not sync.
+  if (ticket.source !== 'query_widget') {
+    return;
+  }
+
+  try {
+    const rsCustomer = await repairShoprService.searchOrCreateCustomer({
+      firstname: ticket.customerName.split(' ')[0] || 'Unknown',
+      lastname: ticket.customerName.split(' ').slice(1).join(' ') || 'Customer',
+      email: ticket.customerEmail,
+      phone: ticket.customerPhone
+    });
+
+    const subject = `Query - ${ticket.ticketId}`;
+    const problemType = 'Unknown';
+
+    const rsTicket = await repairShoprService.createTicket({
+      customerId: rsCustomer.id,
+      subject: subject,
+      issueDescription: ticket.issueDescription,
+      status: 'New',
+      problem_type: problemType
+    });
+
+    ticket.repairshoprCustomerId = String(rsCustomer.id);
+    ticket.repairshoprTicketId = String(rsTicket.id);
+    await ticket.save();
+    logger.info(`[RepairShopr] Synced query lead ${ticket.ticketId} successfully. RS Customer ID: ${rsCustomer.id}, RS Ticket ID: ${rsTicket.id}`);
+  } catch (err: any) {
+    logger.error(`[RepairShopr] Sync failed for query lead ${ticket.ticketId}: ${err.message}`, { error: err });
+  }
+}

@@ -1,14 +1,14 @@
 /// <reference types="node" />
 declare const process: any;
 
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import Product from '../models/Product';
-
 dotenv.config();
 
 // Force Airtable mode in-process to ensure we fetch from Airtable Products table
 process.env.USE_AIRTABLE = 'true';
+
+import mongoose from 'mongoose';
+import Product from '../models/Product';
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/irepairme';
 

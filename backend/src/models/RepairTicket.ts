@@ -21,7 +21,7 @@ export interface IRepairTicket extends Document {
   deviceModel: string;
   issueDescription: string;
   status: RepairStatus;
-  estimatedCost: number;
+  estimatedCost?: number;
   serviceMode: 'walkin' | 'courier';
   scheduledDate?: string;
   scheduledSlot?: string;
@@ -31,6 +31,11 @@ export interface IRepairTicket extends Document {
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  repairshoprTicketId?: string;
+  repairshoprCustomerId?: string;
+  source: 'website_booking' | 'admin_manual' | 'query_widget' | 'repairshopr_import' | 'repairshopr_pull';
+  forceCreated?: boolean;
+  createdBy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,7 +52,7 @@ const RepairTicketSchema: Schema = new Schema(
     deviceModel: { type: String, required: true },
     issueDescription: { type: String, required: true },
     status: { type: String, enum: Object.values(RepairStatus), default: RepairStatus.PENDING },
-    estimatedCost: { type: Number, required: true },
+    estimatedCost: { type: Number, default: 0 },
     serviceMode: { type: String, enum: ['walkin', 'courier'], default: 'walkin' },
     scheduledDate: { type: String },
     scheduledSlot: { type: String },
@@ -57,6 +62,11 @@ const RepairTicketSchema: Schema = new Schema(
     razorpayOrderId: { type: String, unique: true, sparse: true },
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },
+    repairshoprTicketId: { type: String },
+    repairshoprCustomerId: { type: String },
+    source: { type: String, enum: ['website_booking', 'admin_manual', 'query_widget', 'repairshopr_import', 'repairshopr_pull'], default: 'website_booking' },
+    forceCreated: { type: Boolean, default: false },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }
 );
@@ -65,6 +75,34 @@ const MongooseRepairTicketModel = mongoose.models.RepairTicket || mongoose.model
 
 const tableName = process.env.AIRTABLE_TABLE_REPAIR_TICKETS || 'tickets';
 const airtableRepairRepo = new AirtableRepository<IRepairTicket>(tableName);
+
+const MONGO_ONLY_FIELDS = [
+  'repairshoprTicketId',
+  'repairshoprCustomerId',
+  'source',
+  'forceCreated',
+  'createdBy',
+  'razorpayOrderId',
+  'razorpayPaymentId',
+  'razorpaySignature',
+  'borzoOrderId'
+];
+
+function hasMongoOnlyFields(query: any): boolean {
+  if (!query) return false;
+  return Object.keys(query).some(key => MONGO_ONLY_FIELDS.includes(key));
+}
+
+function isMongoQuery(query: any): boolean {
+  if (!query) return false;
+  return Object.values(query).some(value => value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date));
+}
+
+function sanitizeAirtablePayload(data: any): any {
+  const sanitized = { ...data };
+  MONGO_ONLY_FIELDS.forEach(field => delete (sanitized as any)[field]);
+  return sanitized;
+}
 
 class HybridRepairTicket {
   id?: string;
@@ -79,7 +117,7 @@ class HybridRepairTicket {
   deviceModel!: string;
   issueDescription!: string;
   status!: RepairStatus;
-  estimatedCost!: number;
+  estimatedCost?: number;
   serviceMode!: 'walkin' | 'courier';
   scheduledDate?: string;
   scheduledSlot?: string;
@@ -89,6 +127,11 @@ class HybridRepairTicket {
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  repairshoprTicketId?: string;
+  repairshoprCustomerId?: string;
+  source!: 'website_booking' | 'admin_manual' | 'query_widget' | 'repairshopr_import' | 'repairshopr_pull';
+  forceCreated?: boolean;
+  createdBy?: string;
   createdAt?: Date;
   updatedAt?: Date;
 
@@ -102,11 +145,12 @@ class HybridRepairTicket {
     delete (cleanData as any).save;
 
     if (useAirtable) {
+      const airtablePayload = sanitizeAirtablePayload(cleanData);
       if (this.id && this.id.startsWith('rec')) {
-        const updated = await airtableRepairRepo.findByIdAndUpdate(this.id, cleanData);
+        const updated = await airtableRepairRepo.findByIdAndUpdate(this.id, airtablePayload);
         Object.assign(this, updated);
       } else {
-        const created = await airtableRepairRepo.create(cleanData);
+        const created = await airtableRepairRepo.create(airtablePayload);
         Object.assign(this, created);
       }
 
@@ -132,14 +176,19 @@ class HybridRepairTicket {
           borzoOrderId: this.borzoOrderId,
           razorpayOrderId: this.razorpayOrderId,
           razorpayPaymentId: this.razorpayPaymentId,
-          razorpaySignature: this.razorpaySignature
+          razorpaySignature: this.razorpaySignature,
+          repairshoprTicketId: this.repairshoprTicketId,
+          repairshoprCustomerId: this.repairshoprCustomerId,
+          source: this.source,
+          forceCreated: this.forceCreated,
+          createdBy: this.createdBy
         };
         if (existing) {
-          MongooseRepairTicketModel.findByIdAndUpdate(existing.id, payload).exec().catch(() => {});
+          MongooseRepairTicketModel.findByIdAndUpdate(existing.id, payload).exec().catch(() => { });
         } else {
-          new MongooseRepairTicketModel(payload).save().catch(() => {});
+          new MongooseRepairTicketModel(payload).save().catch(() => { });
         }
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       let mongoDoc;
       if (this._id && !String(this._id).startsWith('rec')) {
@@ -157,7 +206,7 @@ class HybridRepairTicket {
 const RepairTicketFacade = {
   find(query: any = {}): HybridQuery<any> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
-    if (useAirtable) {
+    if (useAirtable && !hasMongoOnlyFields(query) && !isMongoQuery(query)) {
       if (query._id) {
         return new HybridQuery(airtableRepairRepo.findById(query._id).then(r => r ? [r] : []));
       }
@@ -169,7 +218,7 @@ const RepairTicketFacade = {
 
   findOne(query: any = {}): HybridSingleQuery<any> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
-    if (useAirtable) {
+    if (useAirtable && !hasMongoOnlyFields(query) && !isMongoQuery(query)) {
       if (query._id) {
         return new HybridSingleQuery(airtableRepairRepo.findById(query._id));
       }
@@ -191,8 +240,9 @@ const RepairTicketFacade = {
   findByIdAndUpdate(id: string, update: any, options: any = {}): Promise<any | null> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
     if (useAirtable) {
-      MongooseRepairTicketModel.findByIdAndUpdate(id, update).exec().catch(() => {});
-      return airtableRepairRepo.findByIdAndUpdate(id, update);
+      MongooseRepairTicketModel.findByIdAndUpdate(id, update).exec().catch(() => { });
+      const airtablePayload = sanitizeAirtablePayload(update);
+      return airtableRepairRepo.findByIdAndUpdate(id, airtablePayload);
     } else {
       return MongooseRepairTicketModel.findByIdAndUpdate(id, update, { new: true }).exec().then(doc => doc ? doc.toObject() : null);
     }
@@ -201,8 +251,9 @@ const RepairTicketFacade = {
   findOneAndUpdate(query: any, update: any, options: any = {}): Promise<any | null> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
     if (useAirtable) {
-      MongooseRepairTicketModel.findOneAndUpdate(query, update).exec().catch(() => {});
-      return airtableRepairRepo.findOneAndUpdate(query, update);
+      MongooseRepairTicketModel.findOneAndUpdate(query, update).exec().catch(() => { });
+      const airtablePayload = sanitizeAirtablePayload(update);
+      return airtableRepairRepo.findOneAndUpdate(query, airtablePayload);
     } else {
       return MongooseRepairTicketModel.findOneAndUpdate(query, update, { new: true }).exec().then(doc => doc ? doc.toObject() : null);
     }
@@ -211,7 +262,7 @@ const RepairTicketFacade = {
   findByIdAndDelete(id: string): Promise<any | null> {
     const useAirtable = process.env.USE_AIRTABLE === 'true';
     if (useAirtable) {
-      MongooseRepairTicketModel.findByIdAndDelete(id).exec().catch(() => {});
+      MongooseRepairTicketModel.findByIdAndDelete(id).exec().catch(() => { });
       return airtableRepairRepo.delete(id);
     } else {
       return MongooseRepairTicketModel.findByIdAndDelete(id).exec().then(doc => doc ? doc.toObject() : null);
@@ -219,10 +270,10 @@ const RepairTicketFacade = {
   }
 };
 
-const RepairTicketConstructor = function(this: any, data: any) {
+const RepairTicketConstructor = function (this: any, data: any) {
   return new HybridRepairTicket(data);
 } as any as {
-  new (data: any): HybridRepairTicket;
+  new(data: any): HybridRepairTicket;
   find(query?: any): HybridQuery<any>;
   findOne(query?: any): HybridSingleQuery<any>;
   findById(id: string): HybridSingleQuery<any>;

@@ -157,16 +157,21 @@ export function buildFormula(query: any): string {
 export class HybridSingleQuery<T> implements PromiseLike<T | null> {
   private promise: Promise<T | null>;
   private mongooseQuery: any = null;
+  private transform?: (doc: any) => any;
 
-  constructor(promise: Promise<T | null>, mongooseQuery?: any) {
+  constructor(promise: Promise<T | null>, mongooseQuery?: any, transform?: (doc: any) => any) {
     this.promise = promise;
     this.mongooseQuery = mongooseQuery;
+    this.transform = transform;
   }
 
   select(fields: string): this {
     if (this.mongooseQuery) {
       this.mongooseQuery.select(fields);
-      this.promise = this.mongooseQuery.exec().then((doc: any) => doc ? doc.toObject() : null);
+      this.promise = this.mongooseQuery.exec().then((doc: any) => {
+        const obj = doc ? doc.toObject() : null;
+        return this.transform && obj ? this.transform(obj) : obj;
+      });
     } else {
       this.promise = this.promise.then(doc => {
         if (!doc) return null;
@@ -193,16 +198,21 @@ export class HybridSingleQuery<T> implements PromiseLike<T | null> {
 export class HybridQuery<T> implements PromiseLike<T[]> {
   private promise: Promise<T[]>;
   private mongooseQuery: any = null;
+  private transform?: (doc: any) => any;
 
-  constructor(promise: Promise<T[]>, mongooseQuery?: any) {
+  constructor(promise: Promise<T[]>, mongooseQuery?: any, transform?: (doc: any) => any) {
     this.promise = promise;
     this.mongooseQuery = mongooseQuery;
+    this.transform = transform;
   }
 
   sort(sortOptions: any): this {
     if (this.mongooseQuery) {
       this.mongooseQuery.sort(sortOptions);
-      this.promise = this.mongooseQuery.exec().then((docs: any[]) => docs.map(d => d.toObject()));
+      this.promise = this.mongooseQuery.exec().then((docs: any[]) => {
+        const objects = docs.map(d => d.toObject());
+        return this.transform ? objects.map(this.transform) : objects;
+      });
     } else {
       this.promise = this.promise.then(docs => {
         const sortKeys = Object.keys(sortOptions);
@@ -227,7 +237,30 @@ export class HybridQuery<T> implements PromiseLike<T[]> {
   select(fields: string): this {
     if (this.mongooseQuery) {
       this.mongooseQuery.select(fields);
-      this.promise = this.mongooseQuery.exec().then((docs: any[]) => docs.map(d => d.toObject()));
+      this.promise = this.mongooseQuery.exec().then((docs: any[]) => {
+        const objects = docs.map(d => d.toObject());
+        const transformed = this.transform ? objects.map(this.transform) : objects;
+        return transformed.map(doc => {
+          if (!doc) return doc;
+          const mapped = { ...doc };
+          if (typeof fields === 'string') {
+            const excludes = fields.split(' ').filter(f => f.startsWith('-')).map(f => f.substring(1));
+            excludes.forEach(f => delete (mapped as any)[f]);
+
+            const includes = fields.split(' ').filter(f => !f.startsWith('-') && f.trim() !== '');
+            if (includes.length > 0) {
+              const selected: any = {};
+              includes.forEach(f => {
+                selected[f] = (mapped as any)[f];
+              });
+              if ((mapped as any).id !== undefined) selected.id = (mapped as any).id;
+              if ((mapped as any)._id !== undefined) selected._id = (mapped as any)._id;
+              return selected;
+            }
+          }
+          return mapped;
+        });
+      });
     } else {
       this.promise = this.promise.then(docs => {
         return docs.map(doc => {

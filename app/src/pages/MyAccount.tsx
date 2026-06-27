@@ -32,6 +32,9 @@ export default function MyAccount() {
 
   // Data state
   const [myTickets, setMyTickets] = useState<any[]>([]);
+  const [myOrders, setMyOrders] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'repairs' | 'orders'>('repairs');
 
   const handleCopy = (e: React.MouseEvent, text: string) => {
     e.preventDefault();
@@ -40,21 +43,34 @@ export default function MyAccount() {
     alert('Ticket ID copied to clipboard: ' + text);
   };
 
-  // Fetch tickets matching user's email or phone number
-  const fetchMyTickets = async () => {
+  // Fetch tickets matching user's email or phone number and orders
+  const fetchMyData = async () => {
     try {
-      const response = await api.get('/repairs/my-tickets');
-      setMyTickets(response.data);
+      const [ticketsRes, ordersRes, productsRes] = await Promise.all([
+        api.get('/repairs/my-tickets'),
+        api.get('/shop/orders/me').catch((err) => {
+          console.error('[MyAccount] Failed to fetch orders:', err?.response?.status, err?.response?.data);
+          return { data: [] };
+        }),
+        api.get('/shop/products').catch(() => ({ data: [] }))
+      ]);
+      console.log('[MyAccount] Orders response:', ordersRes.data);
+      console.log('[MyAccount] Orders count:', Array.isArray(ordersRes.data) ? ordersRes.data.length : 'not an array');
+      setMyTickets(ticketsRes.data || []);
+      setMyOrders(ordersRes.data || []);
+      setProducts(productsRes.data || []);
     } catch (e) {
-      console.error("Error fetching tickets:", e);
+      console.error("Error fetching account data:", e);
     }
   };
 
   useEffect(() => {
     if (isLoggedIn) {
-      fetchMyTickets();
+      fetchMyData();
     } else {
       setMyTickets([]);
+      setMyOrders([]);
+      setProducts([]);
     }
   }, [isLoggedIn]);
 
@@ -116,7 +132,7 @@ export default function MyAccount() {
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!email || !password) {
       setError('Please enter both email and password');
       return;
@@ -190,6 +206,8 @@ export default function MyAccount() {
     storeLogout();
     clearCart();
     setMyTickets([]);
+    setMyOrders([]);
+    setProducts([]);
   };
 
   if (!isLoggedIn) {
@@ -204,11 +222,10 @@ export default function MyAccount() {
                 setMethod('email');
                 setError('');
               }}
-              className={`flex-1 pb-3 text-b-sm font-semibold border-b-2 transition-colors flex items-center justify-center gap-2 ${
-                method === 'email'
+              className={`flex-1 pb-3 text-b-sm font-semibold border-b-2 transition-colors flex items-center justify-center gap-2 ${method === 'email'
                   ? 'border-neutral-950 text-neutral-950'
                   : 'border-transparent text-neutral-400 hover:text-neutral-600'
-              }`}
+                }`}
             >
               <Mail className="w-4 h-4" />
               Email Login
@@ -219,11 +236,10 @@ export default function MyAccount() {
                 setMethod('phone');
                 setError('');
               }}
-              className={`flex-1 pb-3 text-b-sm font-semibold border-b-2 transition-colors flex items-center justify-center gap-2 ${
-                method === 'phone'
+              className={`flex-1 pb-3 text-b-sm font-semibold border-b-2 transition-colors flex items-center justify-center gap-2 ${method === 'phone'
                   ? 'border-neutral-950 text-neutral-950'
                   : 'border-transparent text-neutral-400 hover:text-neutral-600'
-              }`}
+                }`}
             >
               <Smartphone className="w-4 h-4" />
               Phone OTP
@@ -463,54 +479,154 @@ export default function MyAccount() {
           </div>
         </div>
 
-        {/* Repair History */}
-        <h3 className="text-h-md text-neutral-950 mb-4 flex items-center gap-2">
-          <Package className="w-5 h-5" /> My Repairs
-        </h3>
-        
-        <div className="space-y-4">
-          {myTickets.length === 0 ? (
-            <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center">
-              <p className="text-b-sm text-neutral-500">You haven't booked any repairs yet.</p>
-              <Link to="/booking" className="mt-4 inline-block text-b-sm font-medium text-neutral-950 hover:underline">Book a Repair</Link>
-            </div>
-          ) : (
-            myTickets.map((ticket) => (
-              <Link
-                key={ticket.ticketId}
-                to="/track-repair"
-                className="flex flex-col sm:flex-row sm:items-center justify-between bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 transition-colors shadow-sm"
-              >
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex items-center gap-1 bg-neutral-100 pl-2 pr-1 py-0.5 rounded-md border border-neutral-200">
-                      <span className="text-b-xs font-mono font-medium text-neutral-600">{ticket.ticketId}</span>
-                      <button
-                        onClick={(e) => handleCopy(e, ticket.ticketId)}
-                        className="p-1 hover:bg-neutral-200 rounded text-neutral-500 transition-colors"
-                        title="Copy Ticket ID"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <span className={`text-b-xs px-2.5 py-0.5 rounded-full ${statusColors[ticket.status] || 'bg-gray-100 text-gray-800'}`}>
-                      {statusLabels[ticket.status] || ticket.status}
-                    </span>
-                  </div>
-                  <p className="text-b-sm font-semibold text-neutral-950">{ticket.brand} {ticket.deviceModel}</p>
-                  <p className="text-b-xs text-neutral-500 mt-0.5">{ticket.issueDescription}</p>
-                  <p className="text-b-xs text-neutral-400 mt-2">
-                    {new Date(ticket.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="text-left sm:text-right mt-4 sm:mt-0 flex items-center sm:block">
-                  <p className="text-b-sm font-bold text-neutral-950 flex-1">₹{ticket.estimatedCost}</p>
-                  <ChevronRight className="w-5 h-5 text-neutral-400 ml-auto" />
-                </div>
-              </Link>
-            ))
-          )}
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-neutral-200 mb-6 gap-6">
+          <button
+            onClick={() => setActiveTab('repairs')}
+            className={`pb-3 text-b-sm font-semibold border-b-2 transition-colors relative ${activeTab === 'repairs'
+                ? 'border-neutral-950 text-neutral-950'
+                : 'border-transparent text-neutral-400 hover:text-neutral-600'
+              }`}
+          >
+            My Repairs ({myTickets.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`pb-3 text-b-sm font-semibold border-b-2 transition-colors relative ${activeTab === 'orders'
+                ? 'border-neutral-950 text-neutral-950'
+                : 'border-transparent text-neutral-400 hover:text-neutral-600'
+              }`}
+          >
+            My Orders ({myOrders.length})
+          </button>
         </div>
+
+        {/* Repairs Tab Content */}
+        {activeTab === 'repairs' && (
+          <div className="space-y-4">
+            {myTickets.length === 0 ? (
+              <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center shadow-sm">
+                <p className="text-b-sm text-neutral-500">You haven't booked any repairs yet.</p>
+                <Link to="/booking" className="mt-4 inline-block text-b-sm font-medium text-neutral-950 hover:underline">Book a Repair</Link>
+              </div>
+            ) : (
+              myTickets.map((ticket) => (
+                <Link
+                  key={ticket.ticketId}
+                  to="/track-repair"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 transition-colors shadow-sm animate-fade-in"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1 bg-neutral-100 pl-2 pr-1 py-0.5 rounded-md border border-neutral-200">
+                        <span className="text-b-xs font-mono font-medium text-neutral-600">{ticket.ticketId}</span>
+                        <button
+                          onClick={(e) => handleCopy(e, ticket.ticketId)}
+                          className="p-1 hover:bg-neutral-200 rounded text-neutral-500 transition-colors"
+                          title="Copy Ticket ID"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <span className={`text-b-xs px-2.5 py-0.5 rounded-full ${statusColors[ticket.status] || 'bg-gray-100 text-gray-800'}`}>
+                        {statusLabels[ticket.status] || ticket.status}
+                      </span>
+                    </div>
+                    <p className="text-b-sm font-semibold text-neutral-950">{ticket.brand} {ticket.deviceModel}</p>
+                    <p className="text-b-xs text-neutral-500 mt-0.5">{ticket.issueDescription}</p>
+                    <p className="text-b-xs text-neutral-400 mt-2">
+                      {new Date(ticket.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-left sm:text-right mt-4 sm:mt-0 flex items-center sm:block">
+                    <p className="text-b-sm font-bold text-neutral-950 flex-1">₹{ticket.estimatedCost}</p>
+                    <ChevronRight className="w-5 h-5 text-neutral-400 ml-auto" />
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Orders Tab Content */}
+        {activeTab === 'orders' && (
+          <div className="space-y-4">
+            {myOrders.length === 0 ? (
+              <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center shadow-sm">
+                <Package className="w-8 h-8 text-neutral-300 mx-auto mb-3" />
+                <p className="text-b-sm text-neutral-500">You haven't ordered any spare parts yet.</p>
+                <Link to="/shop" className="mt-4 inline-block text-b-sm font-medium text-neutral-950 hover:underline">Browse Spare Parts</Link>
+              </div>
+            ) : (
+              myOrders.map((order) => {
+                const orderColors: Record<string, string> = {
+                  PENDING: 'bg-yellow-50 text-yellow-700 border border-yellow-100',
+                  PROCESSING: 'bg-blue-50 text-blue-700 border border-blue-100',
+                  SHIPPED: 'bg-purple-50 text-purple-700 border border-purple-100',
+                  DELIVERED: 'bg-green-50 text-green-700 border border-green-100',
+                  CANCELLED: 'bg-red-50 text-red-700 border border-red-100',
+                  FAILED: 'bg-neutral-50 text-neutral-600 border border-neutral-100',
+                };
+                const orderLabels: Record<string, string> = {
+                  PENDING: 'Pending Payment',
+                  PROCESSING: 'Processing',
+                  SHIPPED: 'Shipped',
+                  DELIVERED: 'Delivered',
+                  CANCELLED: 'Cancelled',
+                  FAILED: 'Failed',
+                };
+                return (
+                  <div
+                    key={order.id || order._id}
+                    className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm space-y-4 animate-fade-in"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-100 pb-3 gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-b-xs font-mono font-medium text-neutral-500">Order ID:</span>
+                          <span className="text-b-xs font-mono font-bold text-neutral-800">{order.razorpayOrderId || order.orderId || 'N/A'}</span>
+                        </div>
+                        <span className="text-b-xs text-neutral-400">
+                          {new Date(order.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <span className={`text-b-xs px-2.5 py-0.5 rounded-full font-medium ${orderColors[order.status] || 'bg-gray-55 text-gray-700'}`}>
+                        {orderLabels[order.status] || order.status}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {order.items.map((item: any, idx: number) => {
+                        const prod = products.find(p => p.id === item.productId || p._id === item.productId);
+                        return (
+                          <div key={idx} className="flex justify-between items-center text-b-sm">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={prod?.image || prod?.imageUrl || '/images/service-screen.jpg'}
+                                alt={prod?.name || 'Spare Part'}
+                                className="w-10 h-10 object-cover rounded-lg bg-neutral-100 border border-neutral-200"
+                              />
+                              <div>
+                                <p className="font-semibold text-neutral-950">{prod?.name || 'Spare Part Product'}</p>
+                                <p className="text-b-xs text-neutral-500">Qty: {item.quantity} &middot; Price: ₹{item.price.toLocaleString()}</p>
+                              </div>
+                            </div>
+                            <span className="font-semibold text-neutral-950">₹{(item.price * item.quantity).toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-neutral-100 pt-3 gap-2 text-b-sm">
+                      <span className="text-neutral-500">Delivery Mode: <span className="capitalize text-neutral-800 font-semibold">{order.serviceMode}</span></span>
+                      <span className="font-bold text-neutral-950">Total Amount: ₹{order.totalAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

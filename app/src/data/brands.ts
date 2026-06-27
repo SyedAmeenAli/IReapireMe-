@@ -101,7 +101,7 @@ export const brands: BrandData[] = [
     id: 'other',
     name: 'Other Brands',
     slug: 'other',
-    deviceTypes: ['android', 'ipad', 'laptop', 'other'],
+    deviceTypes: ['android', 'laptop', 'other'],
     popularModels: ['Nokia', 'Sony', 'LG', 'Huawei', 'Honor', 'Infinix'],
     description: 'We repair devices from all manufacturers. Contact us for your specific model.',
   },
